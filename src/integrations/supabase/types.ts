@@ -14,16 +14,299 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      blogs: {
+        Row: {
+          content: string | null
+          created_at: string
+          id: string
+          image: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          image?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          image?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      bookings: {
+        Row: {
+          created_at: string
+          customer_name: string
+          id: string
+          package_name: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          customer_name: string
+          id?: string
+          package_name: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          customer_name?: string
+          id?: string
+          package_name?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      faqs: {
+        Row: {
+          answer: string | null
+          created_at: string
+          id: string
+          question: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          answer?: string | null
+          created_at?: string
+          id?: string
+          question: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          answer?: string | null
+          created_at?: string
+          id?: string
+          question?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      gallery_images: {
+        Row: {
+          caption: string | null
+          created_at: string
+          id: string
+          url: string
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          id?: string
+          url: string
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          id?: string
+          url?: string
+        }
+        Relationships: []
+      }
+      hotels: {
+        Row: {
+          created_at: string
+          id: string
+          image: string | null
+          location: string | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          image?: string | null
+          location?: string | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          image?: string | null
+          location?: string | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      packages: {
+        Row: {
+          accommodations: Json
+          cover_image: string | null
+          created_at: string
+          flights: Json
+          id: string
+          includes: Json
+          lectures: Json
+          meals: Json
+          mina_arafat: Json
+          name: string
+          price: number
+          transportation: Json
+          travel_end: string | null
+          travel_start: string | null
+          type: Database["public"]["Enums"]["package_type"]
+          updated_at: string
+        }
+        Insert: {
+          accommodations?: Json
+          cover_image?: string | null
+          created_at?: string
+          flights?: Json
+          id?: string
+          includes?: Json
+          lectures?: Json
+          meals?: Json
+          mina_arafat?: Json
+          name: string
+          price?: number
+          transportation?: Json
+          travel_end?: string | null
+          travel_start?: string | null
+          type?: Database["public"]["Enums"]["package_type"]
+          updated_at?: string
+        }
+        Update: {
+          accommodations?: Json
+          cover_image?: string | null
+          created_at?: string
+          flights?: Json
+          id?: string
+          includes?: Json
+          lectures?: Json
+          meals?: Json
+          mina_arafat?: Json
+          name?: string
+          price?: number
+          transportation?: Json
+          travel_end?: string | null
+          travel_start?: string | null
+          type?: Database["public"]["Enums"]["package_type"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          email: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      site_content: {
+        Row: {
+          data: Json
+          key: string
+          updated_at: string
+        }
+        Insert: {
+          data?: Json
+          key: string
+          updated_at?: string
+        }
+        Update: {
+          data?: Json
+          key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tours: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          image: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          image?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          image?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_admin_or_editor: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "editor"
+      package_type: "hajj" | "umrah"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +433,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "editor"],
+      package_type: ["hajj", "umrah"],
+    },
   },
 } as const
