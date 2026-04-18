@@ -13,22 +13,28 @@ export default function Dashboard() {
 
   useEffect(() => {
     document.title = "Dashboard — Pearl Hijja Admin";
-    const tables = ["packages", "tours", "hotels", "gallery_images", "blogs", "faqs", "bookings"] as const;
-    Promise.all(tables.map(t => supabase.from(t).select("*", { count: "exact", head: true })))
-      .then(results => {
-        const next: Stats = {};
-        tables.forEach((t, i) => next[t] = results[i].count ?? 0);
-        setStats(next);
-      });
+    const tables = ["packages", "tours", "hotels", "gallery", "blogs", "faqs", "about_us", "contact_info", "contact_messages", "bookings"] as const;
+    const loadStats = async () => {
+      const next: Stats = {};
+      await Promise.all(tables.map(async (t) => {
+        const res = await supabase.from(t).select("*", { count: "exact", head: true });
+        next[t] = res.error ? 0 : res.count ?? 0;
+      }));
+      setStats(next);
+    };
+    loadStats();
   }, []);
 
   const tiles = [
     { key: "packages", label: "Packages", icon: Package, to: "/landing", accent: true },
     { key: "tours", label: "Tours", icon: MapPin, to: "/landing" },
     { key: "hotels", label: "Hotels", icon: Building2, to: "/landing" },
-    { key: "gallery_images", label: "Gallery images", icon: ImageIcon, to: "/landing" },
+    { key: "gallery", label: "Gallery", icon: ImageIcon, to: "/landing" },
     { key: "blogs", label: "Blogs", icon: BookOpen, to: "/landing" },
     { key: "faqs", label: "FAQs", icon: HelpCircle, to: "/landing" },
+    { key: "about_us", label: "About sections", icon: MapPin, to: "/landing" },
+    { key: "contact_info", label: "Contact info", icon: Building2, to: "/landing" },
+    { key: "contact_messages", label: "Messages", icon: HelpCircle, to: "/landing" },
     { key: "bookings", label: "Bookings", icon: ClipboardList, to: "/bookings" },
   ];
 

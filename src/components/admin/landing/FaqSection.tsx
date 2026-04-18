@@ -8,7 +8,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Pencil, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
-type FAQ = { id: string; question: string; answer: string | null; sort_order: number };
+type FAQ = {
+  id: string;
+  category: string | null;
+  question: string;
+  answer: string | null;
+  created_at: string;
+  updated_at: string;
+};
 
 export default function FaqSection() {
   const [rows, setRows] = useState<FAQ[]>([]);
@@ -16,7 +23,8 @@ export default function FaqSection() {
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
-    const { data } = await supabase.from("faqs").select("*").order("sort_order").order("created_at");
+    const { data, error } = await supabase.from("faqs").select("*").order("created_at", { ascending: false });
+    if (error) return toast.error(error.message);
     setRows((data as FAQ[]) ?? []);
   };
   useEffect(() => { load(); }, []);
@@ -24,7 +32,11 @@ export default function FaqSection() {
   const save = async () => {
     if (!editing?.question) return toast.error("Question required");
     setBusy(true);
-    const payload = { question: editing.question, answer: editing.answer ?? null, sort_order: editing.sort_order ?? 0 };
+    const payload = {
+      category: editing.category ?? null,
+      question: editing.question,
+      answer: editing.answer ?? null,
+    };
     const res = editing.id
       ? await supabase.from("faqs").update(payload).eq("id", editing.id)
       : await supabase.from("faqs").insert(payload);
@@ -51,9 +63,9 @@ export default function FaqSection() {
               <h4 className="font-semibold">{editing.id ? "Edit FAQ" : "New FAQ"}</h4>
               <Button variant="ghost" size="sm" onClick={() => setEditing(null)}><X className="h-4 w-4" /></Button>
             </div>
+            <div><Label>Category</Label><Input value={editing.category ?? ""} onChange={(e) => setEditing({ ...editing, category: e.target.value })} /></div>
             <div><Label>Question</Label><Input value={editing.question ?? ""} onChange={(e) => setEditing({ ...editing, question: e.target.value })} /></div>
             <div><Label>Answer</Label><Textarea rows={4} value={editing.answer ?? ""} onChange={(e) => setEditing({ ...editing, answer: e.target.value })} /></div>
-            <div className="max-w-[140px]"><Label>Sort order</Label><Input type="number" value={editing.sort_order ?? 0} onChange={(e) => setEditing({ ...editing, sort_order: Number(e.target.value) })} /></div>
             <Button onClick={save} disabled={busy}>{busy ? "Saving…" : "Save FAQ"}</Button>
           </div>
         )}
@@ -62,7 +74,10 @@ export default function FaqSection() {
           {rows.map(f => (
             <div key={f.id} className="rounded-md border border-border p-3 flex items-start gap-3 bg-card">
               <div className="flex-1">
-                <p className="font-medium text-sm">{f.question}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-sm">{f.question}</p>
+                  {f.category && <span className="rounded-full border border-border px-2 py-1 text-xs text-muted-foreground">{f.category}</span>}
+                </div>
                 <p className="text-sm text-muted-foreground mt-1 whitespace-pre-line">{f.answer}</p>
               </div>
               <div className="flex gap-1">

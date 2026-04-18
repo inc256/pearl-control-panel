@@ -16,26 +16,35 @@ export type Database = {
     Tables: {
       blogs: {
         Row: {
+          category: string | null
           content: string | null
           created_at: string
+          excerpt: string | null
           id: string
-          image: string | null
+          image_url: string | null
+          published_at: string | null
           title: string
           updated_at: string
         }
         Insert: {
+          category?: string | null
           content?: string | null
           created_at?: string
+          excerpt?: string | null
           id?: string
-          image?: string | null
+          image_url?: string | null
+          published_at?: string | null
           title: string
           updated_at?: string
         }
         Update: {
+          category?: string | null
           content?: string | null
           created_at?: string
+          excerpt?: string | null
           id?: string
-          image?: string | null
+          image_url?: string | null
+          published_at?: string | null
           title?: string
           updated_at?: string
         }
@@ -68,27 +77,150 @@ export type Database = {
       faqs: {
         Row: {
           answer: string | null
+          category: string | null
           created_at: string
           id: string
           question: string
-          sort_order: number
           updated_at: string
         }
         Insert: {
           answer?: string | null
+          category?: string | null
           created_at?: string
           id?: string
           question: string
-          sort_order?: number
           updated_at?: string
         }
         Update: {
           answer?: string | null
+          category?: string | null
           created_at?: string
           id?: string
           question?: string
-          sort_order?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      about_us: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          image_url: string | null
+          order_position: number
+          section_title: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          order_position?: number
+          section_title: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          order_position?: number
+          section_title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      contact_info: {
+        Row: {
+          created_at: string
+          icon: string | null
+          id: string
+          label: string
+          order_position: number
+          type: string | null
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          icon?: string | null
+          id?: string
+          label: string
+          order_position?: number
+          type?: string | null
+          value: string
+        }
+        Update: {
+          created_at?: string
+          icon?: string | null
+          id?: string
+          label?: string
+          order_position?: number
+          type?: string | null
+          value?: string
+        }
+        Relationships: []
+      }
+      gallery: {
+        Row: {
+          alt_text: string | null
+          category: string | null
+          created_at: string
+          id: string
+          image_url: string
+          order_position: number
+          title: string | null
+        }
+        Insert: {
+          alt_text?: string | null
+          category?: string | null
+          created_at?: string
+          id?: string
+          image_url: string
+          order_position?: number
+          title?: string | null
+        }
+        Update: {
+          alt_text?: string | null
+          category?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string
+          order_position?: number
+          title?: string | null
+        }
+        Relationships: []
+      }
+      contact_messages: {
+        Row: {
+          created_at: string
+          email: string
+          first_name: string
+          id: string
+          last_name: string
+          message: string
+          phone: string | null
+          subject: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          first_name: string
+          id?: string
+          last_name: string
+          message: string
+          phone?: string | null
+          subject: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          first_name?: string
+          id?: string
+          last_name?: string
+          message?: string
+          phone?: string | null
+          subject?: string
         }
         Relationships: []
       }
