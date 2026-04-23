@@ -25,8 +25,8 @@ type Pkg = {
   name: string;
   type: "hajj" | "umrah";
   price: number;
-  travel_start: string;
-  travel_end: string;
+  start_date: string;
+  end_date: string;
   flights: Flights;
   accommodations: Accommodation[];
   transportation: Transportation;
@@ -37,7 +37,7 @@ type Pkg = {
 };
 
 const empty: Pkg = {
-  name: "", type: "umrah", price: 0, travel_start: "", travel_end: "",
+  name: "", type: "umrah", price: 0, start_date: "", end_date: "",
   flights: { airline: "", departure: "", return: "", notes: "" },
   accommodations: [],
   transportation: { type: "", description: "" },
@@ -72,7 +72,7 @@ export default function PackageEditor() {
     setSaving(true);
     const payload = {
       name: pkg.name, type: pkg.type, price: pkg.price,
-      travel_start: pkg.travel_start || null, travel_end: pkg.travel_end || null,
+      start_date: pkg.start_date || null, end_date: pkg.end_date || null,
       flights: pkg.flights, accommodations: pkg.accommodations as any,
       transportation: pkg.transportation, mina_arafat: pkg.mina_arafat,
       meals: pkg.meals, lectures: pkg.lectures as any, includes: pkg.includes as any,
@@ -129,8 +129,8 @@ export default function PackageEditor() {
                 </Select>
               </div>
               <div><Label>Price (USD)</Label><Input type="number" min={0} value={pkg.price} onChange={(e) => set("price", Number(e.target.value))} /></div>
-              <div><Label>Travel start</Label><Input type="date" value={pkg.travel_start} onChange={(e) => set("travel_start", e.target.value)} /></div>
-              <div><Label>Travel end</Label><Input type="date" value={pkg.travel_end} onChange={(e) => set("travel_end", e.target.value)} /></div>
+              <div><Label>Travel start</Label><Input type="date" value={pkg.start_date} onChange={(e) => set("start_date", e.target.value)} /></div>
+              <div><Label>Travel end</Label><Input type="date" value={pkg.end_date} onChange={(e) => set("end_date", e.target.value)} /></div>
             </CardContent>
           </Card>
         </TabsContent>

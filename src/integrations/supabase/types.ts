@@ -286,8 +286,8 @@ export type Database = {
           name: string
           price: number
           transportation: Json
-          travel_end: string | null
-          travel_start: string | null
+          end_date: string | null
+          start_date: string | null
           type: Database["public"]["Enums"]["package_type"]
           updated_at: string
         }
@@ -304,8 +304,8 @@ export type Database = {
           name: string
           price?: number
           transportation?: Json
-          travel_end?: string | null
-          travel_start?: string | null
+          end_date?: string | null
+          start_date?: string | null
           type?: Database["public"]["Enums"]["package_type"]
           updated_at?: string
         }
@@ -322,8 +322,8 @@ export type Database = {
           name?: string
           price?: number
           transportation?: Json
-          travel_end?: string | null
-          travel_start?: string | null
+          end_date?: string | null
+          start_date?: string | null
           type?: Database["public"]["Enums"]["package_type"]
           updated_at?: string
         }

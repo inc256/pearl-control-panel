@@ -8,7 +8,7 @@ import ImageUpload from "@/components/admin/ImageUpload";
 import { Plus, Pencil, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
-type Hotel = { id: string; name: string; location: string | null; image: string | null };
+type Hotel = { id: string; name: string; location: string | null; image: string | null; stars: number | null; description: string | null; package_id: string | null };
 
 export default function HotelsSection() {
   const [rows, setRows] = useState<Hotel[]>([]);
@@ -16,15 +16,29 @@ export default function HotelsSection() {
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
-    const { data } = await supabase.from("hotels").select("*").order("created_at", { ascending: false });
-    setRows((data as Hotel[]) ?? []);
+    const { data, error } = await supabase.from("hotels").select("*").order("created_at", { ascending: false });
+    if (error) {
+      console.error("Hotels load error:", error);
+      toast.error("Failed to load hotels: " + error.message);
+    }
+    if (data) {
+      console.log("Hotels loaded:", data);
+      setRows((data as Hotel[]) ?? []);
+    }
   };
   useEffect(() => { load(); }, []);
 
   const save = async () => {
     if (!editing?.name) return toast.error("Name required");
     setBusy(true);
-    const payload = { name: editing.name, location: editing.location ?? null, image: editing.image ?? null };
+    const payload = { 
+      name: editing.name, 
+      location: editing.location ?? null, 
+      image: editing.image ?? null,
+      stars: editing.stars ?? null,
+      description: editing.description ?? null,
+      package_id: editing.package_id ?? null
+    };
     const res = editing.id
       ? await supabase.from("hotels").update(payload).eq("id", editing.id)
       : await supabase.from("hotels").insert(payload);
@@ -53,6 +67,8 @@ export default function HotelsSection() {
             </div>
             <div><Label>Name</Label><Input value={editing.name ?? ""} onChange={(e) => setEditing({ ...editing, name: e.target.value })} /></div>
             <div><Label>Location</Label><Input value={editing.location ?? ""} onChange={(e) => setEditing({ ...editing, location: e.target.value })} /></div>
+            <div><Label>Description</Label><Input value={editing.description ?? ""} onChange={(e) => setEditing({ ...editing, description: e.target.value })} placeholder="Optional" /></div>
+            <div><Label>Star Rating</Label><Input type="number" min="0" max="5" step="0.5" value={editing.stars ?? ""} onChange={(e) => setEditing({ ...editing, stars: e.target.value ? parseFloat(e.target.value) : null })} placeholder="e.g., 4.5" /></div>
             <ImageUpload value={editing.image ?? ""} onChange={(url) => setEditing({ ...editing, image: url })} folder="hotels" />
             <Button onClick={save} disabled={busy}>{busy ? "Saving…" : "Save hotel"}</Button>
           </div>
@@ -65,6 +81,8 @@ export default function HotelsSection() {
               <div className="p-3">
                 <p className="font-medium">{h.name}</p>
                 <p className="text-xs text-muted-foreground mt-1">{h.location}</p>
+                {h.description && <p className="text-xs text-muted-foreground mt-1">{h.description}</p>}
+                {h.stars && <p className="text-xs text-yellow-600 mt-1">⭐ {h.stars}</p>}
                 <div className="mt-3 flex gap-1">
                   <Button size="sm" variant="ghost" onClick={() => setEditing(h)}><Pencil className="h-4 w-4" /></Button>
                   <Button size="sm" variant="ghost" onClick={() => remove(h.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>

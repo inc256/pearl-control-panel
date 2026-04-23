@@ -101,8 +101,8 @@ CREATE TABLE public.packages (
   name text NOT NULL,
   type public.package_type NOT NULL DEFAULT 'umrah',
   price numeric(12,2) NOT NULL DEFAULT 0,
-  travel_start date,
-  travel_end date,
+  start_date date,
+  end_date date,
   cover_image text,
   -- structured sub-sections stored as jsonb for flexibility
   flights jsonb NOT NULL DEFAULT '{"airline":"","departure":"","return":"","notes":""}'::jsonb,
@@ -141,6 +141,9 @@ CREATE TABLE public.hotels (
   name text NOT NULL,
   location text,
   image text,
+  description text,
+  stars numeric(2,1),
+  package_id uuid,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );

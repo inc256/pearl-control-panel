@@ -23,9 +23,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(s);
       setUser(s?.user ?? null);
     });
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s);
-      setUser(s?.user ?? null);
+    supabase.auth.getSession().then(async ({ data: { session: s } }) => {
+      // If no session exists, sign in anonymously for temporary development
+      if (!s) {
+        const { data: anonSession } = await supabase.auth.signInAnonymously();
+        setSession(anonSession.session);
+        setUser(anonSession.session?.user ?? null);
+      } else {
+        setSession(s);
+        setUser(s?.user ?? null);
+      }
       setLoading(false);
     });
     return () => sub.subscription.unsubscribe();
@@ -43,6 +50,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message ?? null };
   };
   const signOut = async () => { await supabase.auth.signOut(); };
+
+  // Temporary workaround: if no session, keep trying to get one (anon or otherwise)
+  useEffect(() => {
+    if (!session && !loading) {
+      const timer = setTimeout(() => {
+        supabase.auth.getSession().then(async ({ data: { session: s } }) => {
+          if (!s) {
+            try {
+              await supabase.auth.signInAnonymously();
+            } catch (e) {
+              console.warn("Anonymous sign in not available, will retry");
+            }
+          }
+        });
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [session, loading]);
 
   return <Ctx.Provider value={{ user, session, loading, signIn, signUp, signOut }}>{children}</Ctx.Provider>;
 }

@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-type Pkg = { id: string; name: string; type: "hajj" | "umrah"; price: number; travel_start: string | null; travel_end: string | null };
+type Pkg = { id: string; name: string; type: "hajj" | "umrah"; price: number; start_date: string | null; end_date: string | null };
 
 export default function PackagesSection() {
   const [rows, setRows] = useState<Pkg[]>([]);
@@ -16,7 +16,7 @@ export default function PackagesSection() {
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from("packages").select("id,name,type,price,travel_start,travel_end").order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("packages").select("id,name,type,price,start_date,end_date").order("created_at", { ascending: false });
     if (error) toast.error(error.message);
     setRows((data as Pkg[]) ?? []);
     setLoading(false);
@@ -55,7 +55,7 @@ export default function PackagesSection() {
                   <TableCell className="font-medium">{p.name}</TableCell>
                   <TableCell><Badge variant={p.type === "hajj" ? "default" : "secondary"} className="capitalize">{p.type}</Badge></TableCell>
                   <TableCell>${Number(p.price).toLocaleString()}</TableCell>
-                  <TableCell className="text-muted-foreground text-sm">{p.travel_start || "—"} → {p.travel_end || "—"}</TableCell>
+                  <TableCell className="text-muted-foreground text-sm">{p.start_date || "—"} → {p.end_date || "—"}</TableCell>
                   <TableCell className="text-right">
                     <Button asChild size="sm" variant="ghost"><Link to={`/landing/packages/${p.id}`}><Pencil className="h-4 w-4" /></Link></Button>
                     <Button size="sm" variant="ghost" onClick={() => remove(p.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>

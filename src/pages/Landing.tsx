@@ -1,30 +1,22 @@
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import AboutSection from "@/components/admin/landing/AboutSection";
 import PackagesSection from "@/components/admin/landing/PackagesSection";
-import ToursSection from "@/components/admin/landing/ToursSection";
 import HotelsSection from "@/components/admin/landing/HotelsSection";
 import GallerySection from "@/components/admin/landing/GallerySection";
 import BlogsSection from "@/components/admin/landing/BlogsSection";
 import FaqSection from "@/components/admin/landing/FaqSection";
-import ContactSection from "@/components/admin/landing/ContactSection";
-import MessagesSection from "@/components/admin/landing/MessagesSection";
 import { useEffect, useState } from "react";
 
 const TABS = [
-  { v: "about", l: "About" },
   { v: "packages", l: "Packages" },
-  { v: "tours", l: "Tours" },
   { v: "hotels", l: "Hotels" },
   { v: "gallery", l: "Gallery" },
   { v: "blogs", l: "Blogs" },
   { v: "faq", l: "FAQ" },
-  { v: "contact", l: "Contact info" },
-  { v: "messages", l: "Messages" },
 ];
 
 export default function Landing() {
-  const [tab, setTab] = useState(() => localStorage.getItem("landing.tab") ?? "about");
+  const [tab, setTab] = useState(() => localStorage.getItem("landing.tab") ?? "packages");
   useEffect(() => { document.title = "Landing CMS — Pearl Hijja Admin"; }, []);
   useEffect(() => { localStorage.setItem("landing.tab", tab); }, [tab]);
 
@@ -36,15 +28,11 @@ export default function Landing() {
             {TABS.map(t => <TabsTrigger key={t.v} value={t.v}>{t.l}</TabsTrigger>)}
           </TabsList>
         </div>
-        <TabsContent value="about"><AboutSection /></TabsContent>
         <TabsContent value="packages"><PackagesSection /></TabsContent>
-        <TabsContent value="tours"><ToursSection /></TabsContent>
         <TabsContent value="hotels"><HotelsSection /></TabsContent>
         <TabsContent value="gallery"><GallerySection /></TabsContent>
         <TabsContent value="blogs"><BlogsSection /></TabsContent>
         <TabsContent value="faq"><FaqSection /></TabsContent>
-        <TabsContent value="contact"><ContactSection /></TabsContent>
-        <TabsContent value="messages"><MessagesSection /></TabsContent>
       </Tabs>
     </AdminLayout>
   );
