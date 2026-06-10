@@ -24,11 +24,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(s?.user ?? null);
     });
     supabase.auth.getSession().then(async ({ data: { session: s } }) => {
-      // If no session exists, sign in anonymously for temporary development
+      // If no session exists, try to sign in anonymously for temporary development
       if (!s) {
-        const { data: anonSession } = await supabase.auth.signInAnonymously();
-        setSession(anonSession.session);
-        setUser(anonSession.session?.user ?? null);
+        try {
+          const { data: anonSession, error } = await supabase.auth.signInAnonymously();
+          if (error) {
+            console.warn("Anonymous sign in not available:", error.message);
+            // Continue without session - app will work with RLS policies allowing public access
+          } else {
+            setSession(anonSession.session);
+            setUser(anonSession.session?.user ?? null);
+          }
+        } catch (e) {
+          console.warn("Anonymous sign in failed:", e);
+          // Continue without session
+        }
       } else {
         setSession(s);
         setUser(s?.user ?? null);
@@ -51,20 +61,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
   const signOut = async () => { await supabase.auth.signOut(); };
 
-  // Temporary workaround: if no session, keep trying to get one (anon or otherwise)
+  // Retry anonymous auth if needed, but don't block the app
   useEffect(() => {
     if (!session && !loading) {
       const timer = setTimeout(() => {
         supabase.auth.getSession().then(async ({ data: { session: s } }) => {
           if (!s) {
             try {
-              await supabase.auth.signInAnonymously();
+              const { error } = await supabase.auth.signInAnonymously();
+              if (!error) {
+                // Successfully signed in anonymously, session will be updated via onAuthStateChange
+              }
             } catch (e) {
-              console.warn("Anonymous sign in not available, will retry");
+              // Silently fail - app can work without session if RLS allows public access
             }
           }
         });
-      }, 1000);
+      }, 2000);
       return () => clearTimeout(timer);
     }
   }, [session, loading]);
