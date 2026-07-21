@@ -1,16 +1,17 @@
 import { ReactNode, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, FileText, ClipboardList, Palette, Settings, LogOut, Menu, X, Gem } from "lucide-react";
+import { LayoutDashboard, FileText, ClipboardList, BarChart3, Users, CreditCard, LogOut, Menu, X, Gem } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 const nav = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/landing", label: "Landing Page", icon: FileText },
+  { to: "/business-stats", label: "Business Stats", icon: BarChart3 },
   { to: "/bookings", label: "Bookings", icon: ClipboardList },
-  { to: "/customize", label: "Customize", icon: Palette },
-  { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/clients", label: "Clients", icon: Users },
+  { to: "/payments", label: "Payments", icon: CreditCard },
+  { to: "/contributions", label: "Contributions", icon: LayoutDashboard },
+  { to: "/landing", label: "Landing Page", icon: FileText, end: true },
 ];
 
 export default function AdminLayout({ children, title, description }: { children: ReactNode; title: string; description?: string }) {
