@@ -26,7 +26,7 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/auth" element={<Auth />} />
-            <Route path="/" element={<Navigate to="/landing" replace />} />
+            <Route path="/" element={<Navigate to="/business-stats" replace />} />
             <Route path="/landing" element={<ProtectedRoute><Landing /></ProtectedRoute>} />
             <Route path="/landing/packages/:id" element={<ProtectedRoute><PackageEditor /></ProtectedRoute>} />
             <Route path="/landing/packages/new" element={<ProtectedRoute><PackageEditor /></ProtectedRoute>} />
