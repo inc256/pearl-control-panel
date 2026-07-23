@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      about_us: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          image_url: string | null
+          order_position: number
+          section_title: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          order_position?: number
+          section_title: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          order_position?: number
+          section_title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       blogs: {
         Row: {
           category: string | null
@@ -52,81 +82,112 @@ export type Database = {
       }
       bookings: {
         Row: {
+          booking_date: string
+          booking_status: string
+          client_id: string
           created_at: string
-          customer_name: string
+          first_name: string
           id: string
-          package_name: string
-          status: string
-        }
-        Insert: {
-          created_at?: string
-          customer_name: string
-          id?: string
-          package_name: string
-          status?: string
-        }
-        Update: {
-          created_at?: string
-          customer_name?: string
-          id?: string
-          package_name?: string
-          status?: string
-        }
-        Relationships: []
-      }
-      faqs: {
-        Row: {
-          answer: string | null
-          category: string | null
-          created_at: string
-          id: string
-          question: string
+          package_id: number
+          payment_method: Json
+          second_name: string | null
+          total_amount: number
+          travelers_no: number
           updated_at: string
         }
         Insert: {
-          answer?: string | null
-          category?: string | null
+          booking_date?: string
+          booking_status?: string
+          client_id: string
           created_at?: string
+          first_name: string
           id?: string
-          question: string
+          package_id: number
+          payment_method?: Json
+          second_name?: string | null
+          total_amount?: number
+          travelers_no?: number
           updated_at?: string
         }
         Update: {
-          answer?: string | null
-          category?: string | null
+          booking_date?: string
+          booking_status?: string
+          client_id?: string
           created_at?: string
+          first_name?: string
           id?: string
-          question?: string
+          package_id?: number
+          payment_method?: Json
+          second_name?: string | null
+          total_amount?: number
+          travelers_no?: number
           updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_client_id_fkey"
+            columns: ["client_id"]
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_package_id_fkey"
+            columns: ["package_id"]
+            referencedRelation: "packages"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      booking_statuses: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
         }
         Relationships: []
       }
-      about_us: {
+      clients: {
         Row: {
-          content: string
+          address: string | null
+          app_id: string | null
           created_at: string
+          first_name: string
           id: string
-          image_url: string | null
-          order_position: number
-          section_title: string
+          national_id: string | null
+          second_name: string | null
           updated_at: string
         }
         Insert: {
-          content: string
+          address?: string | null
+          app_id?: string | null
           created_at?: string
+          first_name: string
           id?: string
-          image_url?: string | null
-          order_position?: number
-          section_title: string
+          national_id?: string | null
+          second_name?: string | null
           updated_at?: string
         }
         Update: {
-          content?: string
+          address?: string | null
+          app_id?: string | null
           created_at?: string
+          first_name?: string
           id?: string
-          image_url?: string | null
-          order_position?: number
-          section_title?: string
+          national_id?: string | null
+          second_name?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -161,39 +222,6 @@ export type Database = {
         }
         Relationships: []
       }
-      gallery: {
-        Row: {
-          alt_text: string | null
-          category: string | null
-          created_at: string
-          id: string
-          image_url: string
-          media_type: 'image' | 'video'
-          order_position: number
-          title: string | null
-        }
-        Insert: {
-          alt_text?: string | null
-          category?: string | null
-          created_at?: string
-          id?: string
-          image_url: string
-          media_type?: 'image' | 'video'
-          order_position?: number
-          title?: string | null
-        }
-        Update: {
-          alt_text?: string | null
-          category?: string | null
-          created_at?: string
-          id?: string
-          image_url?: string
-          media_type?: 'image' | 'video'
-          order_position?: number
-          title?: string | null
-        }
-        Relationships: []
-      }
       contact_messages: {
         Row: {
           created_at: string
@@ -224,6 +252,120 @@ export type Database = {
           message?: string
           phone?: string | null
           subject?: string
+        }
+        Relationships: []
+      }
+      contributions: {
+        Row: {
+          contribution: Json
+          contribution_date: string
+          created_at: string
+          first_name: string
+          id: string
+          second_name: string | null
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          contribution?: Json
+          contribution_date?: string
+          created_at?: string
+          first_name: string
+          id?: string
+          second_name?: string | null
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          contribution?: Json
+          contribution_date?: string
+          created_at?: string
+          first_name?: string
+          id?: string
+          second_name?: string | null
+          total?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      expenditure: {
+        Row: {
+          amount: number | null
+          created_at: string
+          description: string | null
+          id: number
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string
+          description?: string | null
+          id?: number
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string
+          description?: string | null
+          id?: number
+        }
+        Relationships: []
+      }
+      faqs: {
+        Row: {
+          answer: string | null
+          category: string | null
+          created_at: string
+          id: string
+          question: string
+          updated_at: string
+        }
+        Insert: {
+          answer?: string | null
+          category?: string | null
+          created_at?: string
+          id?: string
+          question: string
+          updated_at?: string
+        }
+        Update: {
+          answer?: string | null
+          category?: string | null
+          created_at?: string
+          id?: string
+          question?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      gallery: {
+        Row: {
+          alt_text: string | null
+          category: string | null
+          created_at: string
+          id: string
+          image_url: string
+          media_type: 'image' | 'video'
+          order_position: number
+          title: string | null
+        }
+        Insert: {
+          alt_text?: string | null
+          category?: string | null
+          created_at?: string
+          id?: string
+          image_url: string
+          media_type?: 'image' | 'video'
+          order_position?: number
+          title?: string | null
+        }
+        Update: {
+          alt_text?: string | null
+          category?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string
+          media_type?: 'image' | 'video'
+          order_position?: number
+          title?: string | null
         }
         Relationships: []
       }
@@ -275,62 +417,156 @@ export type Database = {
         }
         Relationships: []
       }
+      income: {
+        Row: {
+          amount: number | null
+          created_at: string
+          description: string | null
+          id: number
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string
+          description?: string | null
+          id?: number
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string
+          description?: string | null
+          id?: number
+        }
+        Relationships: []
+      }
       packages: {
         Row: {
           accommodations: Json
           cover_image: string | null
           created_at: string
+          end_date: string | null
           flights: Json
-          id: string
+          id: number
           includes: Json
           lectures: Json
           meals: Json
           mina_arafat: Json
-          name: string
-          price: number
-          transportation: Json
-          end_date: string | null
+          name: string | null
+          price: number | null
           start_date: string | null
-          type: Database["public"]["Enums"]["package_type"]
+          transportation: Json
+          type: string | null
           updated_at: string
         }
         Insert: {
           accommodations?: Json
           cover_image?: string | null
           created_at?: string
+          end_date?: string | null
           flights?: Json
-          id?: string
+          id?: number
           includes?: Json
           lectures?: Json
           meals?: Json
           mina_arafat?: Json
-          name: string
-          price?: number
-          transportation?: Json
-          end_date?: string | null
+          name?: string | null
+          price?: number | null
           start_date?: string | null
-          type?: Database["public"]["Enums"]["package_type"]
+          transportation?: Json
+          type?: string | null
           updated_at?: string
         }
         Update: {
           accommodations?: Json
           cover_image?: string | null
           created_at?: string
+          end_date?: string | null
           flights?: Json
-          id?: string
+          id?: number
           includes?: Json
           lectures?: Json
           meals?: Json
           mina_arafat?: Json
-          name?: string
-          price?: number
-          transportation?: Json
-          end_date?: string | null
+          name?: string | null
+          price?: number | null
           start_date?: string | null
-          type?: Database["public"]["Enums"]["package_type"]
+          transportation?: Json
+          type?: string | null
           updated_at?: string
         }
         Relationships: []
+      }
+      payment_plans: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+        }
+        Relationships: []
+      }
+      payments: {
+        Row: {
+          account_no: string | null
+          client_id: string
+          created_at: string
+          discount: number
+          id: string
+          payment_history: Json
+          payment_plan: Json
+          plan: string | null
+          status: Json
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          account_no?: string | null
+          client_id: string
+          created_at?: string
+          discount?: number
+          id?: string
+          payment_history?: Json
+          payment_plan?: Json
+          plan?: string | null
+          status?: Json
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          account_no?: string | null
+          client_id?: string
+          created_at?: string
+          discount?: number
+          id?: string
+          payment_history?: Json
+          payment_plan?: Json
+          plan?: string | null
+          status?: Json
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_client_id_fkey"
+            columns: ["client_id"]
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       profiles: {
         Row: {
@@ -427,7 +663,53 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      booking_details: {
+        Row: {
+          app_id: string | null
+          booking_date: string | null
+          booking_id: string | null
+          booking_status: string | null
+          client_id: string | null
+          first_name: string | null
+          national_id: string | null
+          package_id: number | null
+          package_name: string | null
+          package_price: number | null
+          package_type: string | null
+          payment_method: Json | null
+          second_name: string | null
+          total_amount: number | null
+          travelers_no: number | null
+        }
+        Relationships: []
+      }
+      client_payment_summary: {
+        Row: {
+          client_id: string | null
+          first_name: string | null
+          national_id: string | null
+          net_payment: number | null
+          payment_discount: number | null
+          payment_plan: string | null
+          payment_status: Json | null
+          payment_total: number | null
+          second_name: string | null
+          total_booking_amount: number | null
+          total_bookings: number | null
+        }
+        Relationships: []
+      }
+      contribution_summary: {
+        Row: {
+          contribution_date: string | null
+          created_at: string | null
+          first_name: string | null
+          id: string | null
+          second_name: string | null
+          total: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       has_role: {
