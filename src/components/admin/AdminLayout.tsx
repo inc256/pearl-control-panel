@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 const nav = [
-  { to: "/business-stats", label: "Business Stats", icon: BarChart3 },
+  { to: "/business-statscan", label: "Business Stats", icon: BarChart3 },
   { to: "/bookings", label: "Bookings", icon: ClipboardList },
   { to: "/clients", label: "Clients", icon: Users },
   { to: "/payments", label: "Payments", icon: CreditCard },

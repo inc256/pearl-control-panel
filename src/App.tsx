@@ -26,12 +26,13 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/auth" element={<Auth />} />
-            <Route path="/" element={<Navigate to="/business-stats" replace />} />
+            <Route path="/" element={<Navigate to="/business-statscan" replace />} />
             <Route path="/landing" element={<ProtectedRoute><Landing /></ProtectedRoute>} />
             <Route path="/landing/packages/:id" element={<ProtectedRoute><PackageEditor /></ProtectedRoute>} />
             <Route path="/landing/packages/new" element={<ProtectedRoute><PackageEditor /></ProtectedRoute>} />
             <Route path="/bookings" element={<ProtectedRoute><Bookings /></ProtectedRoute>} />
-            <Route path="/business-stats" element={<ProtectedRoute><BusinessStats /></ProtectedRoute>} />
+            <Route path="/business-stats" element={<Navigate to="/business-statscan" replace />} />
+            <Route path="/business-statscan" element={<ProtectedRoute><BusinessStats /></ProtectedRoute>} />
             <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
             <Route path="/payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />
             <Route path="/contributions" element={<ProtectedRoute><Contributions /></ProtectedRoute>} />
