@@ -8,13 +8,13 @@ import type { Tables } from "@/integrations/supabase/types";
 type Booking = Tables<'bookings'>;
 
 type BookingWithDetails = Booking & {
-  clients: {
+  clients?: {
     first_name: string;
     second_name: string | null;
     national_id: string | null;
     app_id: string | null;
   } | null;
-  packages: {
+  packages?: {
     name: string | null;
     price: number | null;
     type: string | null;
@@ -25,6 +25,7 @@ export default function Bookings() {
   const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
 
   useEffect(() => {
     document.title = "Bookings — Pearl Hijja Admin";
@@ -35,17 +36,36 @@ export default function Bookings() {
     try {
       setLoading(true);
       setError(null);
+
+      console.log('Fetching bookings...');
+
+      // First, let's check if we can connect
+      const { data: testData, error: testError } = await supabase
+        .from('bookings')
+        .select('count')
+        .limit(1);
+
+      console.log('Connection test:', { testData, testError });
+
+      if (testError) {
+        console.error('Connection test failed:', testError);
+        setError(`Database connection error: ${testError.message}`);
+        setLoading(false);
+        return;
+      }
+
+      // Now fetch bookings with joins
       const { data, error } = await supabase
         .from('bookings')
         .select(`
           *,
-          clients (
+          clients!bookings_client_id_fkey (
             first_name,
             second_name,
             national_id,
             app_id
           ),
-          packages (
+          packages!bookings_package_id_fkey (
             name,
             price,
             type
@@ -53,11 +73,40 @@ export default function Bookings() {
         `)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setBookings(data || []);
-    } catch (error) {
+      console.log('Query result:', { data, error });
+
+      if (error) {
+        console.error('Query error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+
+        // If join fails, try without joins
+        if (error.code === 'PGRST202' || error.message.includes('relation')) {
+          console.log('Trying fallback query without joins...');
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('bookings')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+          if (fallbackError) {
+            throw fallbackError;
+          }
+
+          setBookings(fallbackData || []);
+          setError('Could not load client and package details. Showing basic booking data.');
+        } else {
+          throw error;
+        }
+      } else {
+        setBookings(data || []);
+      }
+
+    } catch (error: any) {
       console.error('Error fetching bookings:', error);
-      setError('Failed to load bookings. Please try again.');
+      setError(`Failed to load bookings: ${error.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -65,15 +114,29 @@ export default function Bookings() {
 
   const updateBookingStatus = async (bookingId: string, status: string) => {
     try {
-      const { error } = await supabase
+      const normalizedStatus = status.toLowerCase();
+      
+      console.log(`Updating booking ${bookingId} to ${normalizedStatus}`);
+      
+      const { data, error } = await supabase
         .from('bookings')
-        .update({ booking_status: status })
-        .eq('id', bookingId);
+        .update({ 
+          booking_status: normalizedStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', bookingId)
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Update error:', error);
+        throw error;
+      }
+
+      console.log('Update successful:', data);
       await fetchBookings();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating booking status:', error);
+      alert(`Failed to update booking status: ${error.message}`);
     }
   };
 
@@ -86,10 +149,27 @@ export default function Bookings() {
         return 'text-yellow-600';
       case 'cancelled':
         return 'text-red-600';
+      case 'completed':
+        return 'text-blue-600';
       default:
         return 'text-gray-600';
     }
   };
+
+  const getStatusBadgeClass = (status: string | null) => {
+    if (!status) return 'bg-gray-100 text-gray-600';
+    const classes: Record<string, string> = {
+      'pending': 'bg-yellow-100 text-yellow-700',
+      'confirmed': 'bg-green-100 text-green-700',
+      'cancelled': 'bg-red-100 text-red-700',
+      'completed': 'bg-blue-100 text-blue-700'
+    };
+    return classes[status.toLowerCase()] || 'bg-gray-100 text-gray-600';
+  };
+
+  const filteredBookings = statusFilter === 'all' 
+    ? bookings 
+    : bookings.filter(b => b.booking_status?.toLowerCase() === statusFilter);
 
   if (loading) {
     return (
@@ -106,10 +186,12 @@ export default function Bookings() {
       <AdminLayout title="Bookings" description="Client booking details and installment payment tracking">
         <Card>
           <CardContent className="py-8">
-            <p className="text-red-500 text-center">{error}</p>
-            <Button onClick={fetchBookings} className="mt-4 mx-auto block">
-              Retry
-            </Button>
+            <div className="text-center">
+              <p className="text-red-500 font-semibold">{error}</p>
+              <Button onClick={fetchBookings} className="mt-4">
+                Retry
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </AdminLayout>
@@ -118,157 +200,120 @@ export default function Bookings() {
 
   return (
     <AdminLayout title="Bookings" description="Client booking details and installment payment tracking">
+      {/* Filters */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Recent bookings</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            {bookings.length} booking{bookings.length !== 1 ? 's' : ''} found
-          </p>
+          <CardTitle>Bookings</CardTitle>
+          <div className="flex flex-wrap gap-2 mt-2">
+            <Button
+              size="sm"
+              variant={statusFilter === 'all' ? 'default' : 'outline'}
+              onClick={() => setStatusFilter('all')}
+            >
+              All ({bookings.length})
+            </Button>
+            {['pending', 'confirmed', 'cancelled', 'completed'].map(status => {
+              const count = bookings.filter(b => b.booking_status?.toLowerCase() === status).length;
+              return count > 0 ? (
+                <Button
+                  key={status}
+                  size="sm"
+                  variant={statusFilter === status ? 'default' : 'outline'}
+                  onClick={() => setStatusFilter(status)}
+                >
+                  {status.charAt(0).toUpperCase() + status.slice(1)} ({count})
+                </Button>
+              ) : null;
+            })}
+          </div>
         </CardHeader>
-        <CardContent className="grid gap-4 lg:grid-cols-2">
-          {bookings.length === 0 ? (
-            <div className="col-span-2 py-8 text-center text-muted-foreground">
-              No bookings found
-            </div>
-          ) : (
-            bookings.slice(0, 6).map((booking) => (
-              <div key={booking.id} className="rounded-lg border p-4 space-y-2">
-                <p className="font-semibold text-foreground">
-                  {booking.clients 
-                    ? `${booking.clients.first_name} ${booking.clients.second_name || ''}`.trim()
-                    : booking.first_name}
-                </p>
-                <p>
-                  <span className="font-medium">Package:</span>{' '}
-                  {booking.packages?.name || booking.package_id || 'N/A'}
-                </p>
-                <p>
-                  <span className="font-medium">Travelers:</span>{' '}
-                  {booking.travelers_no || 'N/A'}
-                </p>
-                <p>
-                  <span className="font-medium">Total Amount:</span>{' '}
-                  {booking.total_amount ? `UGX ${booking.total_amount.toLocaleString()}` : 'N/A'}
-                </p>
-                <p>
-                  <span className="font-medium">Status:</span>{' '}
-                  <span className={getStatusColor(booking.booking_status)}>
-                    {booking.booking_status || 'pending'}
-                  </span>
-                </p>
-                <p>
-                  <span className="font-medium">Date:</span>{' '}
-                  {new Date(booking.created_at).toLocaleDateString()}
-                </p>
-                <div className="flex flex-wrap gap-2 pt-2">
-                  <Button 
-                    size="sm" 
-                    onClick={() => updateBookingStatus(booking.id, 'confirmed')}
-                    disabled={booking.booking_status === 'confirmed'}
-                  >
-                    Approve
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => updateBookingStatus(booking.id, 'pending')}
-                  >
-                    Mark pending
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="secondary"
-                    onClick={() => updateBookingStatus(booking.id, 'cancelled')}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            ))
-          )}
-        </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>All bookings</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            {bookings.length} total booking{bookings.length !== 1 ? 's' : ''}
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3 text-sm">
-            {bookings.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">No bookings found</p>
-            ) : (
-              bookings.map((booking) => (
-                <div key={booking.id} className="rounded-lg border p-4 text-foreground space-y-2">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-medium">
-                        {booking.clients 
-                          ? `${booking.clients.first_name} ${booking.clients.second_name || ''}`.trim()
-                          : booking.first_name}
+      {/* Bookings Grid */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {filteredBookings.length === 0 ? (
+          <div className="col-span-full py-8 text-center text-muted-foreground">
+            No bookings found
+          </div>
+        ) : (
+          filteredBookings.map((booking) => (
+            <Card key={booking.id}>
+              <CardContent className="p-4 space-y-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="font-semibold">
+                      {booking.clients 
+                        ? `${booking.clients.first_name} ${booking.clients.second_name || ''}`.trim()
+                        : booking.first_name || 'Unknown Client'}
+                    </p>
+                    {booking.clients?.national_id && (
+                      <p className="text-xs text-muted-foreground">
+                        ID: {booking.clients.national_id}
                       </p>
-                      {booking.clients?.national_id && (
-                        <p className="text-xs text-muted-foreground">
-                          ID: {booking.clients.national_id}
-                        </p>
-                      )}
-                    </div>
-                    <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(booking.booking_status)} bg-gray-100`}>
-                      {booking.booking_status || 'pending'}
-                    </span>
+                    )}
                   </div>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeClass(booking.booking_status)}`}>
+                    {booking.booking_status || 'Pending'}
+                  </span>
+                </div>
+
+                <div className="text-sm space-y-1">
                   <p>
                     <span className="font-medium">Package:</span>{' '}
                     {booking.packages?.name || booking.package_id || 'N/A'}
-                    {booking.packages?.type && ` (${booking.packages.type})`}
                   </p>
                   <p>
-                    <span className="font-medium">Travelers:</span> {booking.travelers_no || 'N/A'}
+                    <span className="font-medium">Travelers:</span>{' '}
+                    {booking.travelers_no || '1'}
                   </p>
                   <p>
-                    <span className="font-medium">Total Amount:</span>{' '}
+                    <span className="font-medium">Total:</span>{' '}
                     {booking.total_amount ? `UGX ${booking.total_amount.toLocaleString()}` : 'N/A'}
                   </p>
                   <p>
-                    <span className="font-medium">Booking Date:</span>{' '}
-                    {new Date(booking.booking_date || booking.created_at).toLocaleDateString()}
+                    <span className="font-medium">Date:</span>{' '}
+                    {new Date(booking.created_at).toLocaleDateString()}
                   </p>
-                  <p>
-                    <span className="font-medium">Created:</span>{' '}
-                    {new Date(booking.created_at).toLocaleString()}
-                  </p>
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    <Button 
-                      size="sm" 
-                      onClick={() => updateBookingStatus(booking.id, 'confirmed')}
-                      disabled={booking.booking_status === 'confirmed'}
-                    >
-                      Approve
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => updateBookingStatus(booking.id, 'pending')}
-                    >
-                      Pending
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      variant="destructive"
-                      onClick={() => updateBookingStatus(booking.id, 'cancelled')}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
                 </div>
-              ))
-            )}
-          </div>
-        </CardContent>
-      </Card>
+
+                <div className="flex flex-wrap gap-2 pt-2 border-t">
+                  <Button
+                    size="sm"
+                    onClick={() => updateBookingStatus(booking.id, 'confirmed')}
+                    disabled={booking.booking_status?.toLowerCase() === 'confirmed'}
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => updateBookingStatus(booking.id, 'pending')}
+                    disabled={booking.booking_status?.toLowerCase() === 'pending'}
+                  >
+                    Pending
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => updateBookingStatus(booking.id, 'cancelled')}
+                    disabled={booking.booking_status?.toLowerCase() === 'cancelled'}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => updateBookingStatus(booking.id, 'completed')}
+                    disabled={booking.booking_status?.toLowerCase() === 'completed'}
+                  >
+                    Complete
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
     </AdminLayout>
   );
 }

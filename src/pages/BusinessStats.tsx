@@ -8,9 +8,18 @@ import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
 import { 
-  Package, ClipboardList, TrendingUp, ArrowDownCircle, 
-  ArrowUpCircle, BarChart3, Eye, FileText, FileSpreadsheet, X,
-  Loader2, ChevronDown, ChevronUp
+  ArrowDownCircle, 
+  ArrowUpCircle, 
+  Eye, 
+  FileText, 
+  FileSpreadsheet, 
+  X,
+  Loader2, 
+  Pencil, 
+  Trash2, 
+  Save,
+  TrendingUp,
+  ClipboardList
 } from "lucide-react";
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -20,6 +29,7 @@ import { useToast } from "@/components/ui/use-toast";
 interface Income {
   id: number;
   created_at: string;
+  date: string | null;
   description: string | null;
   amount: number | null;
 }
@@ -27,6 +37,7 @@ interface Income {
 interface Expenditure {
   id: number;
   created_at: string;
+  date: string | null;
   description: string | null;
   amount: number | null;
 }
@@ -42,10 +53,24 @@ export default function BusinessStats() {
   const [loading, setLoading] = useState(true);
   const [savingIncome, setSavingIncome] = useState(false);
   const [savingExpenditure, setSavingExpenditure] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [packageCount, setPackageCount] = useState(0);
   const [bookingCount, setBookingCount] = useState(0);
   const modalRef = useRef<HTMLDivElement>(null);
+
+  // Editing states
+  const [editingIncomeId, setEditingIncomeId] = useState<number | null>(null);
+  const [editingExpenditureId, setEditingExpenditureId] = useState<number | null>(null);
+  const [editingIncome, setEditingIncome] = useState<{ description: string; amount: string; date: string }>({
+    description: '',
+    amount: '',
+    date: ''
+  });
+  const [editingExpenditure, setEditingExpenditure] = useState<{ description: string; amount: string; date: string }>({
+    description: '',
+    amount: '',
+    date: ''
+  });
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
 
   // Form states
   const [incomeForm, setIncomeForm] = useState({
@@ -67,21 +92,18 @@ export default function BusinessStats() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [incomeResult, expenditureResult, packagesResult, bookingsResult] = await Promise.all([
+      const [incomeResult, expenditureResult, bookingsResult] = await Promise.all([
         supabase.from('income').select('*').order('created_at', { ascending: false }),
         supabase.from('expenditure').select('*').order('created_at', { ascending: false }),
-        supabase.from('packages').select('id', { count: 'exact', head: true }),
         supabase.from('bookings').select('id', { count: 'exact', head: true })
       ]);
 
       if (incomeResult.error) throw incomeResult.error;
       if (expenditureResult.error) throw expenditureResult.error;
-      if (packagesResult.error) throw packagesResult.error;
       if (bookingsResult.error) throw bookingsResult.error;
 
       setIncomeRows(incomeResult.data || []);
       setExpenditureRows(expenditureResult.data || []);
-      setPackageCount(packagesResult.count || 0);
       setBookingCount(bookingsResult.count || 0);
       setLoadingError(null);
     } catch (error: any) {
@@ -121,16 +143,29 @@ export default function BusinessStats() {
 
     try {
       setSavingIncome(true);
+      
+      const insertData: any = {
+        description: incomeForm.description,
+        amount: parseFloat(incomeForm.amount),
+      };
+      
+      if (incomeForm.date) {
+        insertData.date = incomeForm.date;
+      }
+
+      console.log('Saving income with data:', insertData);
+
       const { data, error } = await supabase
         .from('income')
-        .insert({
-          description: incomeForm.description,
-          amount: parseInt(incomeForm.amount),
-          created_at: incomeForm.date || new Date().toISOString()
-        })
+        .insert(insertData)
         .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+
+      console.log('Save response:', data);
 
       toast({
         title: "Success",
@@ -164,16 +199,29 @@ export default function BusinessStats() {
 
     try {
       setSavingExpenditure(true);
+      
+      const insertData: any = {
+        description: expenditureForm.description,
+        amount: parseFloat(expenditureForm.amount),
+      };
+      
+      if (expenditureForm.date) {
+        insertData.date = expenditureForm.date;
+      }
+
+      console.log('Saving expenditure with data:', insertData);
+
       const { data, error } = await supabase
         .from('expenditure')
-        .insert({
-          description: expenditureForm.description,
-          amount: parseInt(expenditureForm.amount),
-          created_at: expenditureForm.date || new Date().toISOString()
-        })
+        .insert(insertData)
         .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+
+      console.log('Save response:', data);
 
       toast({
         title: "Success",
@@ -194,15 +242,282 @@ export default function BusinessStats() {
     }
   };
 
+  // Update income with better error handling
+  const updateIncome = async (id: number) => {
+    if (!editingIncome.description.trim()) {
+      toast({
+        title: "Error",
+        description: "Description is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!editingIncome.amount || parseFloat(editingIncome.amount) <= 0) {
+      toast({
+        title: "Error",
+        description: "Please enter a valid amount",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setUpdatingId(id);
+      
+      const updateData: any = {
+        description: editingIncome.description.trim(),
+        amount: parseFloat(editingIncome.amount),
+      };
+      
+      // Only include date if it's provided
+      if (editingIncome.date) {
+        updateData.date = editingIncome.date;
+      } else {
+        updateData.date = null; // Explicitly set to null if empty
+      }
+
+      console.log('Updating income ID:', id);
+      console.log('Update data:', updateData);
+
+      const { data, error } = await supabase
+        .from('income')
+        .update(updateData)
+        .eq('id', id)
+        .select();
+
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+
+      console.log('Update response:', data);
+
+      if (!data || data.length === 0) {
+        throw new Error('No record was updated. The ID might not exist.');
+      }
+
+      toast({
+        title: "Success",
+        description: "Income record updated successfully",
+      });
+
+      setEditingIncomeId(null);
+      setEditingIncome({ description: '', amount: '', date: '' });
+      await fetchData();
+    } catch (error: any) {
+      console.error('Error updating income:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update income record",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  // Update expenditure with better error handling
+  const updateExpenditure = async (id: number) => {
+    if (!editingExpenditure.description.trim()) {
+      toast({
+        title: "Error",
+        description: "Description is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!editingExpenditure.amount || parseFloat(editingExpenditure.amount) <= 0) {
+      toast({
+        title: "Error",
+        description: "Please enter a valid amount",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setUpdatingId(id);
+      
+      const updateData: any = {
+        description: editingExpenditure.description.trim(),
+        amount: parseFloat(editingExpenditure.amount),
+      };
+      
+      // Only include date if it's provided
+      if (editingExpenditure.date) {
+        updateData.date = editingExpenditure.date;
+      } else {
+        updateData.date = null; // Explicitly set to null if empty
+      }
+
+      console.log('Updating expenditure ID:', id);
+      console.log('Update data:', updateData);
+
+      const { data, error } = await supabase
+        .from('expenditure')
+        .update(updateData)
+        .eq('id', id)
+        .select();
+
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+
+      console.log('Update response:', data);
+
+      if (!data || data.length === 0) {
+        throw new Error('No record was updated. The ID might not exist.');
+      }
+
+      toast({
+        title: "Success",
+        description: "Expenditure record updated successfully",
+      });
+
+      setEditingExpenditureId(null);
+      setEditingExpenditure({ description: '', amount: '', date: '' });
+      await fetchData();
+    } catch (error: any) {
+      console.error('Error updating expenditure:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update expenditure record",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  // Delete income with better error handling
+  const deleteIncome = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this income record?')) return;
+
+    try {
+      setDeletingId(id);
+      console.log('Deleting income ID:', id);
+
+      const { data, error } = await supabase
+        .from('income')
+        .delete()
+        .eq('id', id)
+        .select();
+
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+
+      console.log('Delete response:', data);
+
+      if (!data || data.length === 0) {
+        throw new Error('No record was deleted. The ID might not exist.');
+      }
+
+      toast({
+        title: "Success",
+        description: "Income record deleted successfully",
+      });
+
+      await fetchData();
+    } catch (error: any) {
+      console.error('Error deleting income:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete income record",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // Delete expenditure with better error handling
+  const deleteExpenditure = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this expenditure record?')) return;
+
+    try {
+      setDeletingId(id);
+      console.log('Deleting expenditure ID:', id);
+
+      const { data, error } = await supabase
+        .from('expenditure')
+        .delete()
+        .eq('id', id)
+        .select();
+
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+
+      console.log('Delete response:', data);
+
+      if (!data || data.length === 0) {
+        throw new Error('No record was deleted. The ID might not exist.');
+      }
+
+      toast({
+        title: "Success",
+        description: "Expenditure record deleted successfully",
+      });
+
+      await fetchData();
+    } catch (error: any) {
+      console.error('Error deleting expenditure:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete expenditure record",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // Start editing income
+  const startEditIncome = (row: Income) => {
+    setEditingIncomeId(row.id);
+    setEditingIncome({
+      description: row.description || '',
+      amount: row.amount?.toString() || '',
+      date: row.date || ''
+    });
+  };
+
+  // Start editing expenditure
+  const startEditExpenditure = (row: Expenditure) => {
+    setEditingExpenditureId(row.id);
+    setEditingExpenditure({
+      description: row.description || '',
+      amount: row.amount?.toString() || '',
+      date: row.date || ''
+    });
+  };
+
+  // Cancel editing
+  const cancelEditIncome = () => {
+    setEditingIncomeId(null);
+    setEditingIncome({ description: '', amount: '', date: '' });
+  };
+
+  const cancelEditExpenditure = () => {
+    setEditingExpenditureId(null);
+    setEditingExpenditure({ description: '', amount: '', date: '' });
+  };
+
   // Export functions
-  const exportToPDF = (data: any[], title: string, type: 'income' | 'expenditure') => {
+  const exportToPDF = (data: any[], title: string) => {
     const doc = new jsPDF();
     doc.text(title, 14, 15);
     
     const tableData = data.map(row => [
-      new Date(row.created_at).toLocaleDateString(),
+      row.date ? new Date(row.date).toLocaleDateString() : 'No Date',
       row.description || '',
-      `$${row.amount?.toLocaleString() || 0}`
+      `UGX${row.amount?.toLocaleString() || 0}`
     ]);
 
     doc.autoTable({
@@ -216,7 +531,7 @@ export default function BusinessStats() {
 
   const exportToXLS = (data: any[], title: string) => {
     const exportData = data.map(row => ({
-      Date: new Date(row.created_at).toLocaleDateString(),
+      Date: row.date ? new Date(row.date).toLocaleDateString() : 'No Date',
       Description: row.description || '',
       Amount: row.amount || 0
     }));
@@ -227,7 +542,8 @@ export default function BusinessStats() {
   };
 
   // Helper function to format date
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'No Date';
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
@@ -300,8 +616,8 @@ export default function BusinessStats() {
         </Card>
       )}
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-2 sm:gap-3 md:gap-4 mb-4 sm:mb-6">
+      {/* Stats Grid - 2 columns on wide screen, 1 column on mobile */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 md:gap-4 mb-4 sm:mb-6">
         <Card>
           <CardHeader className="pb-1 sm:pb-2">
             <CardTitle className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1 sm:gap-2">
@@ -312,7 +628,7 @@ export default function BusinessStats() {
           </CardHeader>
           <CardContent>
             <p className="text-base sm:text-xl md:text-2xl lg:text-3xl font-semibold truncate">
-              ${incomeTotal.toLocaleString()}
+              UGX{incomeTotal.toLocaleString()}
             </p>
           </CardContent>
         </Card>
@@ -327,7 +643,7 @@ export default function BusinessStats() {
           </CardHeader>
           <CardContent>
             <p className="text-base sm:text-xl md:text-2xl lg:text-3xl font-semibold truncate">
-              ${expenditureTotal.toLocaleString()}
+              UGX{expenditureTotal.toLocaleString()}
             </p>
           </CardContent>
         </Card>
@@ -341,21 +657,8 @@ export default function BusinessStats() {
           </CardHeader>
           <CardContent>
             <p className={`text-base sm:text-xl md:text-2xl lg:text-3xl font-semibold truncate ${net < 0 ? 'text-red-500' : net > 0 ? 'text-green-500' : ''}`}>
-              ${net.toLocaleString()}
+              UGX{net.toLocaleString()}
             </p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-1 sm:pb-2">
-            <CardTitle className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1 sm:gap-2">
-              <Package className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="hidden xs:inline">Packages</span>
-              <span className="xs:hidden">Pkg</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-base sm:text-xl md:text-2xl lg:text-3xl font-semibold">{packageCount}</p>
           </CardContent>
         </Card>
         
@@ -381,7 +684,7 @@ export default function BusinessStats() {
             <CardTitle className="text-base sm:text-lg">Add Income</CardTitle>
             <ActionButtons 
               onView={() => setShowIncomeList(true)}
-              onPDF={() => exportToPDF(incomeRows, 'Income List', 'income')}
+              onPDF={() => exportToPDF(incomeRows, 'Income List')}
               onXLS={() => exportToXLS(incomeRows, 'Income List')}
               count={incomeRows.length}
               disabled={loading}
@@ -390,7 +693,7 @@ export default function BusinessStats() {
           <CardContent className="space-y-3 sm:space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs sm:text-sm">Date</Label>
+                <Label className="text-xs sm:text-sm">Date (optional)</Label>
                 <Input 
                   type="date" 
                   value={incomeForm.date}
@@ -408,9 +711,10 @@ export default function BusinessStats() {
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs sm:text-sm">Amount ($)</Label>
+                <Label className="text-xs sm:text-sm">Amount (UGX)</Label>
                 <Input 
                   type="number" 
+                  step="0.01"
                   placeholder="0"
                   value={incomeForm.amount}
                   onChange={(e) => setIncomeForm({ ...incomeForm, amount: e.target.value })}
@@ -441,7 +745,7 @@ export default function BusinessStats() {
             <CardTitle className="text-base sm:text-lg">Add Expenditure</CardTitle>
             <ActionButtons 
               onView={() => setShowExpenditureList(true)}
-              onPDF={() => exportToPDF(expenditureRows, 'Expenditure List', 'expenditure')}
+              onPDF={() => exportToPDF(expenditureRows, 'Expenditure List')}
               onXLS={() => exportToXLS(expenditureRows, 'Expenditure List')}
               count={expenditureRows.length}
               disabled={loading}
@@ -450,7 +754,7 @@ export default function BusinessStats() {
           <CardContent className="space-y-3 sm:space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs sm:text-sm">Date</Label>
+                <Label className="text-xs sm:text-sm">Date (optional)</Label>
                 <Input 
                   type="date"
                   value={expenditureForm.date}
@@ -468,9 +772,10 @@ export default function BusinessStats() {
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs sm:text-sm">Amount ($)</Label>
+                <Label className="text-xs sm:text-sm">Amount (UGX)</Label>
                 <Input 
                   type="number" 
+                  step="0.01"
                   placeholder="0"
                   value={expenditureForm.amount}
                   onChange={(e) => setExpenditureForm({ ...expenditureForm, amount: e.target.value })}
@@ -509,7 +814,7 @@ export default function BusinessStats() {
                 <Button 
                   variant="outline" 
                   size="sm"
-                  onClick={() => exportToPDF(incomeRows, 'Income List', 'income')}
+                  onClick={() => exportToPDF(incomeRows, 'Income List')}
                   className="flex-1 sm:flex-none text-xs sm:text-sm"
                 >
                   <FileText className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
@@ -546,16 +851,93 @@ export default function BusinessStats() {
                           <TableHead className="text-xs sm:text-sm">Date</TableHead>
                           <TableHead className="text-xs sm:text-sm">Income</TableHead>
                           <TableHead className="text-right text-xs sm:text-sm">Amount</TableHead>
+                          <TableHead className="text-right text-xs sm:text-sm">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {incomeRows.map((row) => (
                           <TableRow key={row.id}>
-                            <TableCell className="text-xs sm:text-sm">{formatDate(row.created_at)}</TableCell>
-                            <TableCell className="text-xs sm:text-sm">{row.description || 'N/A'}</TableCell>
-                            <TableCell className="text-right text-xs sm:text-sm font-medium">
-                              ${row.amount?.toLocaleString() || 0}
-                            </TableCell>
+                            {editingIncomeId === row.id ? (
+                              <>
+                                <TableCell>
+                                  <Input 
+                                    type="date"
+                                    value={editingIncome.date}
+                                    onChange={(e) => setEditingIncome({ ...editingIncome, date: e.target.value })}
+                                    className="h-8 text-xs"
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Input 
+                                    value={editingIncome.description}
+                                    onChange={(e) => setEditingIncome({ ...editingIncome, description: e.target.value })}
+                                    className="h-8 text-xs"
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Input 
+                                    type="number"
+                                    step="0.01"
+                                    value={editingIncome.amount}
+                                    onChange={(e) => setEditingIncome({ ...editingIncome, amount: e.target.value })}
+                                    className="h-8 text-xs text-right"
+                                  />
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Button 
+                                    size="sm" 
+                                    onClick={() => updateIncome(row.id)}
+                                    disabled={updatingId === row.id}
+                                    className="mr-1"
+                                  >
+                                    {updatingId === row.id ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <Save className="h-3 w-3" />
+                                    )}
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    onClick={cancelEditIncome}
+                                    disabled={updatingId === row.id}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </TableCell>
+                              </>
+                            ) : (
+                              <>
+                                <TableCell className="text-xs sm:text-sm">{formatDate(row.date)}</TableCell>
+                                <TableCell className="text-xs sm:text-sm">{row.description || 'N/A'}</TableCell>
+                                <TableCell className="text-right text-xs sm:text-sm font-medium">
+                                  UGX{row.amount?.toLocaleString() || 0}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Button 
+                                    size="sm" 
+                                    variant="ghost"
+                                    onClick={() => startEditIncome(row)}
+                                    className="h-8 w-8 p-0"
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    variant="ghost"
+                                    onClick={() => deleteIncome(row.id)}
+                                    disabled={deletingId === row.id}
+                                    className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                                  >
+                                    {deletingId === row.id ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="h-3 w-3" />
+                                    )}
+                                  </Button>
+                                </TableCell>
+                              </>
+                            )}
                           </TableRow>
                         ))}
                       </TableBody>
@@ -563,7 +945,7 @@ export default function BusinessStats() {
                   </div>
                   <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t">
                     <p className="text-right font-semibold text-sm sm:text-base">
-                      Total: ${incomeRows.reduce((sum, row) => sum + (row.amount || 0), 0).toLocaleString()}
+                      Total: UGX{incomeRows.reduce((sum, row) => sum + (row.amount || 0), 0).toLocaleString()}
                     </p>
                   </div>
                 </>
@@ -585,7 +967,7 @@ export default function BusinessStats() {
                 <Button 
                   variant="outline" 
                   size="sm"
-                  onClick={() => exportToPDF(expenditureRows, 'Expenditure List', 'expenditure')}
+                  onClick={() => exportToPDF(expenditureRows, 'Expenditure List')}
                   className="flex-1 sm:flex-none text-xs sm:text-sm"
                 >
                   <FileText className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
@@ -622,16 +1004,93 @@ export default function BusinessStats() {
                           <TableHead className="text-xs sm:text-sm">Date</TableHead>
                           <TableHead className="text-xs sm:text-sm">Expenditure</TableHead>
                           <TableHead className="text-right text-xs sm:text-sm">Amount</TableHead>
+                          <TableHead className="text-right text-xs sm:text-sm">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {expenditureRows.map((row) => (
                           <TableRow key={row.id}>
-                            <TableCell className="text-xs sm:text-sm">{formatDate(row.created_at)}</TableCell>
-                            <TableCell className="text-xs sm:text-sm">{row.description || 'N/A'}</TableCell>
-                            <TableCell className="text-right text-xs sm:text-sm font-medium">
-                              ${row.amount?.toLocaleString() || 0}
-                            </TableCell>
+                            {editingExpenditureId === row.id ? (
+                              <>
+                                <TableCell>
+                                  <Input 
+                                    type="date"
+                                    value={editingExpenditure.date}
+                                    onChange={(e) => setEditingExpenditure({ ...editingExpenditure, date: e.target.value })}
+                                    className="h-8 text-xs"
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Input 
+                                    value={editingExpenditure.description}
+                                    onChange={(e) => setEditingExpenditure({ ...editingExpenditure, description: e.target.value })}
+                                    className="h-8 text-xs"
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Input 
+                                    type="number"
+                                    step="0.01"
+                                    value={editingExpenditure.amount}
+                                    onChange={(e) => setEditingExpenditure({ ...editingExpenditure, amount: e.target.value })}
+                                    className="h-8 text-xs text-right"
+                                  />
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Button 
+                                    size="sm" 
+                                    onClick={() => updateExpenditure(row.id)}
+                                    disabled={updatingId === row.id}
+                                    className="mr-1"
+                                  >
+                                    {updatingId === row.id ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <Save className="h-3 w-3" />
+                                    )}
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    onClick={cancelEditExpenditure}
+                                    disabled={updatingId === row.id}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </TableCell>
+                              </>
+                            ) : (
+                              <>
+                                <TableCell className="text-xs sm:text-sm">{formatDate(row.date)}</TableCell>
+                                <TableCell className="text-xs sm:text-sm">{row.description || 'N/A'}</TableCell>
+                                <TableCell className="text-right text-xs sm:text-sm font-medium">
+                                  UGX{row.amount?.toLocaleString() || 0}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Button 
+                                    size="sm" 
+                                    variant="ghost"
+                                    onClick={() => startEditExpenditure(row)}
+                                    className="h-8 w-8 p-0"
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    variant="ghost"
+                                    onClick={() => deleteExpenditure(row.id)}
+                                    disabled={deletingId === row.id}
+                                    className="h-8 w-8 p-0 text-red-500 hover:text-red-700"
+                                  >
+                                    {deletingId === row.id ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="h-3 w-3" />
+                                    )}
+                                  </Button>
+                                </TableCell>
+                              </>
+                            )}
                           </TableRow>
                         ))}
                       </TableBody>
@@ -639,7 +1098,7 @@ export default function BusinessStats() {
                   </div>
                   <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t">
                     <p className="text-right font-semibold text-sm sm:text-base">
-                      Total: ${expenditureRows.reduce((sum, row) => sum + (row.amount || 0), 0).toLocaleString()}
+                      Total: UGX{expenditureRows.reduce((sum, row) => sum + (row.amount || 0), 0).toLocaleString()}
                     </p>
                   </div>
                 </>

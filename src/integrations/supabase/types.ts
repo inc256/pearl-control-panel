@@ -288,27 +288,30 @@ export type Database = {
         }
         Relationships: []
       }
-      expenditure: {
-        Row: {
-          amount: number | null
-          created_at: string
-          description: string | null
-          id: number
-        }
-        Insert: {
-          amount?: number | null
-          created_at?: string
-          description?: string | null
-          id?: number
-        }
-        Update: {
-          amount?: number | null
-          created_at?: string
-          description?: string | null
-          id?: number
-        }
-        Relationships: []
-      }
+       expenditure: {
+    Row: {
+      id: number;
+      created_at: string;
+      date: string | null;  // Added date field
+      description: string | null;
+      amount: number | null;
+    };
+    Insert: {
+      id?: number;
+      created_at?: string;
+      date?: string | null;  // Added date field (optional)
+      description?: string | null;
+      amount?: number | null;
+    };
+    Update: {
+      id?: number;
+      created_at?: string;
+      date?: string | null;  // Added date field (optional)
+      description?: string | null;
+      amount?: number | null;
+    };
+    Relationships: [];
+  }
       faqs: {
         Row: {
           answer: string | null
@@ -418,26 +421,29 @@ export type Database = {
         Relationships: []
       }
       income: {
-        Row: {
-          amount: number | null
-          created_at: string
-          description: string | null
-          id: number
-        }
-        Insert: {
-          amount?: number | null
-          created_at?: string
-          description?: string | null
-          id?: number
-        }
-        Update: {
-          amount?: number | null
-          created_at?: string
-          description?: string | null
-          id?: number
-        }
-        Relationships: []
-      }
+    Row: {
+      id: number;
+      created_at: string;
+      date: string | null;  // Added date field
+      description: string | null;
+      amount: number | null;
+    };
+    Insert: {
+      id?: number;
+      created_at?: string;
+      date?: string | null;  // Added date field (optional)
+      description?: string | null;
+      amount?: number | null;
+    };
+    Update: {
+      id?: number;
+      created_at?: string;
+      date?: string | null;  // Added date field (optional)
+      description?: string | null;
+      amount?: number | null;
+    };
+    Relationships: [];
+  }
       packages: {
         Row: {
           accommodations: Json
