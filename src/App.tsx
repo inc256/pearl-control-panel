@@ -7,9 +7,12 @@ import { AuthProvider } from "@/lib/auth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Auth from "./pages/Auth";
 import Landing from "./pages/Landing";
+import HomeRedirect from "./pages/HomeRedirect";
 import PackageEditor from "./pages/PackageEditor";
 import Bookings from "./pages/Bookings";
 import BusinessStats from "./pages/BusinessStats";
+import BusinessSummary from "./pages/BusinessSummary";
+import Roles from "./pages/Roles";
 import Clients from "./pages/Clients";
 import Payments from "./pages/Payments";
 import Contributions from "./pages/Contributions";
@@ -26,16 +29,18 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/auth" element={<Auth />} />
-            <Route path="/" element={<Navigate to="/business-statscan" replace />} />
+            <Route path="/" element={<HomeRedirect />} />
             <Route path="/landing" element={<ProtectedRoute><Landing /></ProtectedRoute>} />
             <Route path="/landing/packages/:id" element={<ProtectedRoute><PackageEditor /></ProtectedRoute>} />
             <Route path="/landing/packages/new" element={<ProtectedRoute><PackageEditor /></ProtectedRoute>} />
             <Route path="/bookings" element={<ProtectedRoute><Bookings /></ProtectedRoute>} />
             <Route path="/business-stats" element={<Navigate to="/business-statscan" replace />} />
             <Route path="/business-statscan" element={<ProtectedRoute><BusinessStats /></ProtectedRoute>} />
+            <Route path="/business-summary" element={<ProtectedRoute><BusinessSummary /></ProtectedRoute>} />
             <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
             <Route path="/payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />
             <Route path="/contributions" element={<ProtectedRoute><Contributions /></ProtectedRoute>} />
+            <Route path="/roles" element={<ProtectedRoute allowedRoles={["developer", "secretary"]}><Roles /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

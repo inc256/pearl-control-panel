@@ -5,9 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/lib/auth";
+import { ROLES, type AppRole } from "@/lib/roles";
 import { Gem, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+
+const SIGNUP_ROLES: AppRole[] = ['tech', 'business', 'secretary', 'media'];
 
 export default function Auth() {
   const { user, loading, signIn, signUp } = useAuth();
@@ -16,6 +20,7 @@ export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [role, setRole] = useState<AppRole>('media');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => { document.title = "Sign in — Pearl Hijja Admin"; }, []);
@@ -28,8 +33,8 @@ export default function Auth() {
       const { error } = await signIn(email, password);
       if (error) toast.error(error); else { toast.success("Welcome back"); navigate("/"); }
     } else {
-      const { error } = await signUp(email, password, name);
-      if (error) toast.error(error); else toast.success("Account created — check your email if confirmation is required, or sign in.");
+      const { error } = await signUp(email, password, name, role);
+      if (error) toast.error(error); else toast.success("Account created — you can now sign in.");
     }
     setBusy(false);
   };
@@ -58,16 +63,34 @@ export default function Auth() {
             <CardDescription>Sign in to manage your website and packages.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
+            <Tabs value={tab} onValueChange={(v) => setTab(v as "signin" | "signup")}>
               <TabsList className="grid grid-cols-2 w-full">
                 <TabsTrigger value="signin">Sign in</TabsTrigger>
-                <TabsTrigger value="signup">Create admin</TabsTrigger>
+                <TabsTrigger value="signup">Create account</TabsTrigger>
               </TabsList>
               <form onSubmit={submit} className="mt-6 space-y-4">
                 <TabsContent value="signup" className="space-y-4 m-0">
                   <div>
                     <Label htmlFor="name">Display name</Label>
                     <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Admin" />
+                  </div>
+                  <div>
+                    <Label htmlFor="role">Role</Label>
+                    <Select value={role} onValueChange={(value) => setRole(value as AppRole)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SIGNUP_ROLES.map((r) => (
+                          <SelectItem key={r} value={r}>
+                            {ROLES[r].label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Developer access is reserved for lunainc256@gmail.com
+                    </p>
                   </div>
                 </TabsContent>
                 <div>
@@ -80,10 +103,12 @@ export default function Auth() {
                 </div>
                 <Button type="submit" className="w-full" disabled={busy}>
                   {busy && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  {tab === "signin" ? "Sign in" : "Create admin account"}
+                  {tab === "signin" ? "Sign in" : "Create account"}
                 </Button>
                 {tab === "signup" && (
-                  <p className="text-xs text-muted-foreground">First account becomes Admin automatically.</p>
+                  <p className="text-xs text-muted-foreground text-center">
+                    First signup gets Developer access by default.
+                  </p>
                 )}
               </form>
             </Tabs>

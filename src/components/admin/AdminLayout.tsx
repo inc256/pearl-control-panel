@@ -1,25 +1,36 @@
 import { ReactNode, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, FileText, ClipboardList, BarChart3, Users, CreditCard, LogOut, Menu, X, Gem } from "lucide-react";
+import { LayoutDashboard, FileText, ClipboardList, BarChart3, Users, CreditCard, LogOut, Menu, X, Gem, PieChart, UserCog } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { hasRouteAccess, ROLES } from "@/lib/roles";
 
-const nav = [
+const ALL_NAV = [
+  { to: "/business-summary", label: "Business Summary", icon: PieChart },
   { to: "/business-statscan", label: "Business Stats", icon: BarChart3 },
   { to: "/bookings", label: "Bookings", icon: ClipboardList },
   { to: "/clients", label: "Clients", icon: Users },
   { to: "/payments", label: "Payments", icon: CreditCard },
   { to: "/contributions", label: "Contributions", icon: LayoutDashboard },
+  { to: "/roles", label: "Roles", icon: UserCog },
   { to: "/landing", label: "Landing Page", icon: FileText, end: true },
 ];
 
 export default function AdminLayout({ children, title, description }: { children: ReactNode; title: string; description?: string }) {
   const [open, setOpen] = useState(false);
-  const { user, signOut } = useAuth();
+  const { user, signOut, role } = useAuth();
   const navigate = useNavigate();
 
   const handleSignOut = async () => { await signOut(); navigate("/auth"); };
+
+  const visibleNav = ALL_NAV.filter(item => {
+    if (item.to === '/roles') {
+      return ROLES[role]?.canManageRoles;
+    }
+    const path = item.end ? '/' : item.to;
+    return hasRouteAccess(role, path);
+  });
 
   const SidebarInner = (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
@@ -33,7 +44,7 @@ export default function AdminLayout({ children, title, description }: { children
         </div>
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {nav.map(item => (
+        {visibleNav.map(item => (
           <NavLink
             key={item.to}
             to={item.to}
