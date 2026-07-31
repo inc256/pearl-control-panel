@@ -61,44 +61,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, s) => {
-      setSession(s);
-      const u = s?.user ?? null;
+    let mounted = true;
+    let currentUserId: string | null = null;
+
+    const handleAuthState = async (session: Session | null) => {
+      if (!mounted) return;
+      const u = session?.user ?? null;
+      setSession(session);
       setUser(u);
-      if (u) {
-        await fetchRole(u.id, u.email);
-      } else {
+      const uid = u?.id ?? null;
+      if (uid && uid !== currentUserId) {
+        currentUserId = uid;
+        await fetchRole(uid, u.email);
+      } else if (!uid) {
         setRole('media');
       }
       setLoading(false);
+    };
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      handleAuthState(session);
     });
 
-    supabase.auth.getSession().then(async ({ data: { session: s } }) => {
-      if (!s) {
-        try {
-          const { data: anonSession, error } = await supabase.auth.signInAnonymously();
-          if (error) {
-            console.warn("Anonymous sign in not available:", error.message);
-            setLoading(false);
-            return;
-          }
-          const u = anonSession.session?.user ?? null;
-          setSession(anonSession.session);
-          setUser(u);
-          if (u) await fetchRole(u.id, u.email);
-        } catch (e) {
-          console.warn("Anonymous sign in failed:", e);
-        }
-        setLoading(false);
-      } else {
-        setSession(s);
-        const u = s.user;
-        setUser(u);
-        if (u) await fetchRole(u.id, u.email);
-        setLoading(false);
-      }
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      handleAuthState(session);
     });
-    return () => sub.subscription.unsubscribe();
+
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   const signIn: AuthCtx["signIn"] = async (email, password) => {
