@@ -54,7 +54,7 @@ export default function PackagesSection() {
                 <TableRow key={p.id}>
                   <TableCell className="font-medium">{p.name}</TableCell>
                   <TableCell><Badge variant={p.type === "hajj" ? "default" : "secondary"} className="capitalize">{p.type}</Badge></TableCell>
-                  <TableCell>${Number(p.price).toLocaleString()}</TableCell>
+                  <TableCell>UGX {Number(p.price).toLocaleString()}</TableCell>
                   <TableCell className="text-muted-foreground text-sm">{p.start_date || "—"} → {p.end_date || "—"}</TableCell>
                   <TableCell className="text-right">
                     <Button asChild size="sm" variant="ghost"><Link to={`/landing/packages/${p.id}`}><Pencil className="h-4 w-4" /></Link></Button>
