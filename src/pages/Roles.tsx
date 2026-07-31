@@ -77,19 +77,20 @@ export default function Roles() {
     try {
       setSaving(userId);
 
-      const { error: deleteError } = await supabase
-        .from('user_roles')
-        .delete()
-        .eq('user_id', userId);
-
-      if (deleteError) throw deleteError;
-
-      if (newRole !== 'none') {
-        const { error: insertError } = await supabase
+      if (!newRole || newRole === 'none') {
+        const { error: deleteError } = await supabase
           .from('user_roles')
-          .insert({ user_id: userId, role: newRole as AppRole });
+          .delete()
+          .eq('user_id', userId);
 
-        if (insertError) throw insertError;
+        if (deleteError) throw deleteError;
+      } else {
+        const normalizedRole = newRole as AppRole;
+        const { error: upsertError } = await supabase
+          .from('user_roles')
+          .upsert({ user_id: userId, role: normalizedRole }, { onConflict: 'user_id' });
+
+        if (upsertError) throw upsertError;
       }
 
       toast({
