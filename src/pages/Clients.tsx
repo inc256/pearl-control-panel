@@ -335,19 +335,13 @@ export default function Clients() {
     if (!clientToDelete) return;
 
     try {
-      const { error: paymentsError } = await supabase
-        .from('payments')
-        .delete()
-        .eq('client_id', clientToDelete.id);
+      const { error: deleteError } = await supabase.rpc('delete_client_and_payments', {
+        p_client_id: clientToDelete.id
+      });
 
-      if (paymentsError) throw paymentsError;
-
-      const { error: clientError } = await supabase
-        .from('clients')
-        .delete()
-        .eq('id', clientToDelete.id);
-
-      if (clientError) throw clientError;
+      if (deleteError) {
+        throw deleteError;
+      }
 
       setClientToDelete(null);
       setIsDeleteDialogOpen(false);
