@@ -32,20 +32,11 @@ type Payment = Tables<'payments'>;
 type Client = Tables<'clients'>;
 
 interface PaymentWithDetails extends Payment {
-  clients?: {
-    first_name: string;
-    second_name: string | null;
-    app_id: string | null;
-    national_id: string | null;
-    balance?: number;
-    paid_amount?: number;
-    package_id?: number;
-    packages?: {
-      name: string;
-      price: number;
-      type: string;
-    };
-  } | null;
+  client_name?: string | null;
+  client_app_id?: string | null;
+  client_national_id?: string | null;
+  client_balance?: number | null;
+  package_name?: string | null;
 }
 
 export default function Payments() {
@@ -88,28 +79,21 @@ export default function Payments() {
       
       const { data: paymentsData, error: paymentsError } = await supabase
         .from('payments')
-        .select(`
-          *,
-          clients (
-            first_name,
-            second_name,
-            app_id,
-            national_id,
-            balance,
-            paid_amount,
-            package_id,
-            packages (
-              name,
-              price,
-              type
-            )
-          )
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (paymentsError) throw paymentsError;
+
+      const normalizedPayments = (paymentsData || []).map((payment: any) => ({
+        ...payment,
+        client_name: payment.client_id ? `Client ${payment.client_id}` : 'Unknown client',
+        client_app_id: null,
+        client_national_id: null,
+        client_balance: null,
+        package_name: null,
+      }));
       
-      setPayments(paymentsData || []);
+      setPayments(normalizedPayments as PaymentWithDetails[]);
 
       const { data: clientsData, error: clientsError } = await supabase
         .from('clients')
@@ -344,8 +328,8 @@ export default function Payments() {
   }).filter(payment => {
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
-    const clientName = `${payment.clients?.first_name || ''} ${payment.clients?.second_name || ''}`.toLowerCase();
-    const appId = (payment.clients?.app_id || '').toLowerCase();
+    const clientName = `${payment.client_name || ''}`.toLowerCase();
+    const appId = `${payment.client_app_id || ''}`.toLowerCase();
     return clientName.includes(search) || appId.includes(search);
   });
 
@@ -565,14 +549,14 @@ export default function Payments() {
                         <div className="flex items-center gap-1 sm:gap-2">
                           <User className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground hidden xs:inline" />
                           <span className="font-medium truncate max-w-[60px] xs:max-w-[80px] sm:max-w-[120px] md:max-w-[150px]">
-                            {payment.clients?.first_name} {payment.clients?.second_name?.substring(0, 1) || ''}
+                            {payment.client_name || 'Unknown client'}
                           </span>
                         </div>
                       </TableCell>
                       <TableCell className="text-xs sm:text-sm hidden md:table-cell">
-                        {payment.clients?.app_id ? (
+                        {payment.client_app_id ? (
                           <Badge variant="outline" className="font-mono bg-blue-50 text-xs">
-                            {payment.clients.app_id}
+                            {payment.client_app_id}
                           </Badge>
                         ) : (
                           'N/A'
@@ -595,7 +579,7 @@ export default function Payments() {
                       </TableCell>
                       <TableCell className="text-xs sm:text-sm text-right hidden xl:table-cell">
                         <span className={payment.clients?.balance && payment.clients.balance > 0 ? 'text-red-600' : 'text-green-600'}>
-                          UGX {(payment.clients?.balance || 0).toLocaleString()}
+                          UGX {(payment.client_balance || 0).toLocaleString()}
                         </span>
                       </TableCell>
                       <TableCell className="text-xs sm:text-sm">
@@ -648,18 +632,18 @@ export default function Payments() {
                   <div>
                     <p className="text-xs sm:text-sm text-muted-foreground">Client</p>
                     <p className="text-sm sm:text-base font-medium">
-                      {selectedPayment.clients?.first_name} {selectedPayment.clients?.second_name || ''}
+                      {selectedPayment.client_name || 'Unknown client'}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs sm:text-sm text-muted-foreground">App ID</p>
                     <p className="text-xs sm:text-sm font-mono font-medium">
-                      {selectedPayment.clients?.app_id || 'N/A'}
+                      {selectedPayment.client_app_id || 'N/A'}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs sm:text-sm text-muted-foreground">National ID</p>
-                    <p className="text-xs sm:text-sm">{selectedPayment.clients?.national_id || 'N/A'}</p>
+                    <p className="text-xs sm:text-sm">{selectedPayment.client_national_id || 'N/A'}</p>
                   </div>
                   <div>
                     <p className="text-xs sm:text-sm text-muted-foreground">Payment Plan</p>
@@ -694,7 +678,7 @@ export default function Payments() {
                 <div className="bg-purple-50 p-2 sm:p-3 rounded-lg">
                   <p className="text-[10px] sm:text-sm text-muted-foreground">Balance</p>
                   <p className={`text-xs sm:text-sm font-bold ${selectedPayment.clients?.balance && selectedPayment.clients.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    UGX {(selectedPayment.clients?.balance || 0).toLocaleString()}
+                    UGX {(selectedPayment.client_balance || 0).toLocaleString()}
                   </p>
                 </div>
               </div>
