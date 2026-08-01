@@ -8,17 +8,8 @@ import type { Tables } from "@/integrations/supabase/types";
 type Booking = Tables<'bookings'>;
 
 type BookingWithDetails = Booking & {
-  clients?: {
-    first_name: string;
-    second_name: string | null;
-    national_id: string | null;
-    app_id: string | null;
-  } | null;
-  packages?: {
-    name: string | null;
-    price: number | null;
-    type: string | null;
-  } | null;
+  client_name?: string | null;
+  package_name?: string | null;
 };
 
 export default function Bookings() {
@@ -54,23 +45,9 @@ export default function Bookings() {
         return;
       }
 
-      // Now fetch bookings with joins
       const { data, error } = await supabase
         .from('bookings')
-        .select(`
-          *,
-          clients!bookings_client_id_fkey (
-            first_name,
-            second_name,
-            national_id,
-            app_id
-          ),
-          packages!bookings_package_id_fkey (
-            name,
-            price,
-            type
-          )
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
       console.log('Query result:', { data, error });
@@ -82,27 +59,16 @@ export default function Bookings() {
           hint: error.hint,
           code: error.code
         });
-
-        // If join fails, try without joins
-        if (error.code === 'PGRST202' || error.message.includes('relation')) {
-          console.log('Trying fallback query without joins...');
-          const { data: fallbackData, error: fallbackError } = await supabase
-            .from('bookings')
-            .select('*')
-            .order('created_at', { ascending: false });
-
-          if (fallbackError) {
-            throw fallbackError;
-          }
-
-          setBookings(fallbackData || []);
-          setError('Could not load client and package details. Showing basic booking data.');
-        } else {
-          throw error;
-        }
-      } else {
-        setBookings(data || []);
+        throw error;
       }
+
+      const normalizedBookings = (data || []).map((booking: any) => ({
+        ...booking,
+        client_name: booking.first_name ? `${booking.first_name}${booking.second_name ? ` ${booking.second_name}` : ''}`.trim() : 'Unknown Client',
+        package_name: booking.package_id ? `Package ${booking.package_id}` : 'Unknown package',
+      }));
+
+      setBookings(normalizedBookings as BookingWithDetails[]);
 
     } catch (error: any) {
       console.error('Error fetching bookings:', error);
@@ -242,13 +208,11 @@ export default function Bookings() {
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="font-semibold">
-                      {booking.clients 
-                        ? `${booking.clients.first_name} ${booking.clients.second_name || ''}`.trim()
-                        : booking.first_name || 'Unknown Client'}
+                      {booking.client_name || booking.first_name || 'Unknown Client'}
                     </p>
-                    {booking.clients?.national_id && (
+                    {booking.email && (
                       <p className="text-xs text-muted-foreground">
-                        ID: {booking.clients.national_id}
+                        {booking.email}
                       </p>
                     )}
                   </div>
@@ -260,7 +224,7 @@ export default function Bookings() {
                 <div className="text-sm space-y-1">
                   <p>
                     <span className="font-medium">Package:</span>{' '}
-                    {booking.packages?.name || booking.package_id || 'N/A'}
+                    {booking.package_name || booking.package_id || 'N/A'}
                   </p>
                   <p>
                     <span className="font-medium">Travelers:</span>{' '}
