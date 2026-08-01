@@ -226,7 +226,6 @@ export class BookingService {
   }
 
   private static validateBookingData(data: CreateBookingData) {
-    if (!data.client_id) throw new Error('Client ID is required');
     if (!data.package_id) throw new Error('Package ID is required');
     if (!data.first_name) throw new Error('First name is required');
     if (data.total_amount < 0) throw new Error('Total amount cannot be negative');
