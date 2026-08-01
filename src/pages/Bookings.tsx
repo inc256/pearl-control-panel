@@ -2,6 +2,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -13,6 +14,7 @@ type BookingWithDetails = Booking & {
 };
 
 export default function Bookings() {
+  const navigate = useNavigate();
   const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -103,6 +105,57 @@ export default function Bookings() {
     } catch (error: any) {
       console.error('Error updating booking status:', error);
       alert(`Failed to update booking status: ${error.message}`);
+    }
+  };
+
+  const handleApproveBooking = async (booking: BookingWithDetails) => {
+    try {
+      const { error: bookingError } = await supabase
+        .from('bookings')
+        .update({
+          booking_status: 'confirmed',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', booking.id);
+
+      if (bookingError) throw bookingError;
+
+      const nameParts = (booking.client_name || booking.first_name || 'Client').split(/\s+/).filter(Boolean);
+      const firstName = (booking.first_name || nameParts[0] || 'Client').trim();
+      const secondName = (booking.second_name || nameParts.slice(1).join(' ') || '').trim() || null;
+
+      const clientPayload = {
+        first_name: firstName || 'Client',
+        second_name: secondName,
+        national_id: null,
+        address: null,
+        app_id: '',
+        package_id: booking.package_id ? Number(booking.package_id) : null,
+        balance: 0,
+        paid_amount: 0,
+      };
+
+      const { error: clientError } = await supabase
+        .from('clients')
+        .insert(clientPayload);
+
+      if (clientError) throw clientError;
+
+      localStorage.setItem('clients.prefill', JSON.stringify({
+        first_name: clientPayload.first_name,
+        second_name: clientPayload.second_name || '',
+        national_id: '',
+        address: '',
+        app_id: '',
+        package_id: booking.package_id ? String(booking.package_id) : '',
+        status: 'ready'
+      }));
+
+      await fetchBookings();
+      navigate('/clients');
+    } catch (error: any) {
+      console.error('Error approving booking:', error);
+      alert(`Failed to approve booking: ${error.message}`);
     }
   };
 
@@ -243,7 +296,7 @@ export default function Bookings() {
                 <div className="flex flex-wrap gap-2 pt-2 border-t">
                   <Button
                     size="sm"
-                    onClick={() => updateBookingStatus(booking.id, 'confirmed')}
+                    onClick={() => handleApproveBooking(booking)}
                     disabled={booking.booking_status?.toLowerCase() === 'confirmed'}
                   >
                     Approve

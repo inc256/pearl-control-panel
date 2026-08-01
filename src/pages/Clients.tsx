@@ -49,6 +49,29 @@ export default function Clients() {
 
   useEffect(() => {
     document.title = "Clients — Pearl Hijja Admin";
+
+    const storedPrefill = localStorage.getItem('clients.prefill');
+    if (storedPrefill) {
+      try {
+        const parsed = JSON.parse(storedPrefill);
+        setNewClient(prev => ({
+          ...prev,
+          first_name: parsed.first_name ?? prev.first_name,
+          second_name: parsed.second_name ?? prev.second_name,
+          national_id: parsed.national_id ?? prev.national_id,
+          address: parsed.address ?? prev.address,
+          app_id: parsed.app_id ?? prev.app_id,
+          package_id: parsed.package_id ?? prev.package_id,
+          status: parsed.status ?? prev.status,
+        }));
+        setEditingId(null);
+      } catch (error) {
+        console.error('Failed to parse client prefill data:', error);
+      } finally {
+        localStorage.removeItem('clients.prefill');
+      }
+    }
+
     fetchData();
   }, []);
 
@@ -189,6 +212,11 @@ export default function Clients() {
         return;
       }
 
+      if (!newClient.second_name.trim()) {
+        setError('Last name is required');
+        return;
+      }
+
       if (!newClient.package_id) {
         setError('Please select a package');
         return;
@@ -215,7 +243,7 @@ export default function Clients() {
 
       const clientData = {
         first_name: newClient.first_name.trim(),
-        second_name: newClient.second_name?.trim() || null,
+        second_name: newClient.second_name.trim(),
         national_id: newClient.national_id?.trim() || null,
         address: newClient.address?.trim() || null,
         app_id: appId,
@@ -462,7 +490,7 @@ export default function Clients() {
               )}
             </div>
             <div className="flex items-end gap-2 xl:col-span-2">
-              <Button type="submit" className="flex-1" disabled={!newClient.app_id && !editingId}>
+              <Button type="submit" className="flex-1">
                 <Plus className="h-4 w-4 mr-2" />
                 {editingId ? 'Update client' : 'Add client'}
               </Button>
