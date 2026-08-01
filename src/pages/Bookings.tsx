@@ -124,26 +124,9 @@ export default function Bookings() {
       const firstName = (booking.first_name || nameParts[0] || 'Client').trim();
       const secondName = (booking.second_name || nameParts.slice(1).join(' ') || '').trim() || null;
 
-      const clientPayload = {
-        first_name: firstName || 'Client',
-        second_name: secondName,
-        national_id: null,
-        address: null,
-        app_id: '',
-        package_id: booking.package_id ? Number(booking.package_id) : null,
-        balance: 0,
-        paid_amount: 0,
-      };
-
-      const { error: clientError } = await supabase
-        .from('clients')
-        .insert(clientPayload);
-
-      if (clientError) throw clientError;
-
       localStorage.setItem('clients.prefill', JSON.stringify({
-        first_name: clientPayload.first_name,
-        second_name: clientPayload.second_name || '',
+        first_name: firstName || 'Client',
+        second_name: secondName || '',
         national_id: '',
         address: '',
         app_id: '',

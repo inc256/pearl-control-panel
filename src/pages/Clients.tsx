@@ -5,6 +5,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +46,8 @@ export default function Clients() {
   const [selectedClientPayments, setSelectedClientPayments] = useState<Payment[]>([]);
   const [selectedClientName, setSelectedClientName] = useState('');
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [clientToDelete, setClientToDelete] = useState<ClientWithDetails | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   
   const [newClient, setNewClient] = useState({
     first_name: '',
@@ -204,6 +216,12 @@ export default function Clients() {
     await generateAppId();
   };
 
+  const handleFormKeyDown = (event: React.KeyboardEvent<HTMLFormElement>) => {
+    if (event.key === 'Enter' && (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)) {
+      event.preventDefault();
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -252,6 +270,29 @@ export default function Clients() {
         paid_amount: 0
       };
 
+      if (!editingId) {
+        const { data: existingClients, error: duplicateError } = await supabase
+          .from('clients')
+          .select('id, first_name, second_name, package_id')
+          .ilike('first_name', clientData.first_name)
+          .ilike('second_name', clientData.second_name)
+          .eq('package_id', clientData.package_id);
+
+        if (duplicateError) throw duplicateError;
+
+        const hasDuplicate = (existingClients || []).some((client: any) => {
+          const sameFirstName = (client.first_name || '').toLowerCase() === clientData.first_name.toLowerCase();
+          const sameLastName = (client.second_name || '').toLowerCase() === clientData.second_name.toLowerCase();
+          const samePackage = Number(client.package_id) === Number(clientData.package_id);
+          return sameFirstName && sameLastName && samePackage;
+        });
+
+        if (hasDuplicate) {
+          setError('A client with the same first name, last name, and package already exists. At least one of these must be different.');
+          return;
+        }
+      }
+
       if (editingId) {
         const { error } = await supabase
           .from('clients')
@@ -285,20 +326,35 @@ export default function Clients() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this client?')) return;
-    
+  const handleDeleteClick = (client: ClientWithDetails) => {
+    setClientToDelete(client);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!clientToDelete) return;
+
     try {
-      const { error } = await supabase
+      const { error: paymentsError } = await supabase
+        .from('payments')
+        .delete()
+        .eq('client_id', clientToDelete.id);
+
+      if (paymentsError) throw paymentsError;
+
+      const { error: clientError } = await supabase
         .from('clients')
         .delete()
-        .eq('id', id);
+        .eq('id', clientToDelete.id);
 
-      if (error) throw error;
+      if (clientError) throw clientError;
+
+      setClientToDelete(null);
+      setIsDeleteDialogOpen(false);
       await fetchData();
     } catch (error) {
       console.error('Error deleting client:', error);
-      setError('Failed to delete client. Please try again.');
+      setError('Failed to delete client and its payments. Please try again.');
     }
   };
 
@@ -398,8 +454,13 @@ export default function Clients() {
             {clients.length} clients currently registered • {packages.length} packages available
           </p>
         </CardHeader>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown}>
           <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="md:col-span-2 xl:col-span-4">
+              <p className="text-xs text-muted-foreground">
+                Draft mode: you can fill these fields freely. Nothing is saved until you click Add client.
+              </p>
+            </div>
             <div className="space-y-1">
               <Label>First name *</Label>
               <Input 
@@ -607,7 +668,7 @@ export default function Clients() {
                           <Button
                             variant="destructive"
                             size="sm"
-                            onClick={() => handleDelete(client.id)}
+                            onClick={() => handleDeleteClick(client)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -621,6 +682,32 @@ export default function Clients() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this client?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action is permanent. It will remove the client record and delete all associated payments for{' '}
+              <span className="font-semibold">
+                {clientToDelete ? `${clientToDelete.first_name} ${clientToDelete.second_name || ''}`.trim() : 'this client'}
+              </span>
+              .
+              {clientToDelete?.payments && clientToDelete.payments.length > 0 && (
+                <span className="mt-2 block">
+                  {clientToDelete.payments.length} payment{clientToDelete.payments.length !== 1 ? 's' : ''} will also be removed.
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setClientToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+              Delete client
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Payment History Modal */}
       {isPaymentModalOpen && (
