@@ -18,10 +18,10 @@ export const ROLES: Record<AppRole, RoleConfig> = {
   },
   secretary: {
     label: 'Secretary',
-    description: 'Full access except Business Summary',
+    description: 'Full access including Business Summary',
     canManageRoles: true,
-    allowedRoutes: ['/', '/landing', '/business-statscan', '/bookings', '/clients', '/payments', '/contributions', '/roles'],
-    defaultRoute: '/business-statscan',
+    allowedRoutes: ['/', '/landing', '/business-summary', '/business-statscan', '/bookings', '/clients', '/payments', '/contributions', '/roles'],
+    defaultRoute: '/business-summary',
   },
   tech: {
     label: 'Tech',
