@@ -27,6 +27,7 @@ import {
   Search,
   X
 } from "lucide-react";
+import { calculateClientPackageTotal } from "@/lib/clientPricing";
 
 type Payment = Tables<'payments'>;
 type Client = Tables<'clients'>;
@@ -55,7 +56,6 @@ export default function Payments() {
     amount: '',
     date: '',
     plan: '',
-    discount: '0',
     account_no: '',
     notes: ''
   });
@@ -125,8 +125,8 @@ export default function Payments() {
       }
 
       const amount = parseFloat(newPayment.amount);
-      const discount = parseFloat(newPayment.discount) || 0;
-      const netAmount = amount - discount;
+      const discount = 0;
+      const netAmount = amount;
 
       const { data: clientData, error: clientError } = await supabase
         .from('clients')
@@ -153,7 +153,10 @@ export default function Payments() {
       }, 0) + netAmount;
 
       const packagePrice = clientData.packages?.price || 0;
-      const newBalance = packagePrice - totalPaidSoFar;
+      const discountAmount = Number((clientData as any).discount_amount || 0);
+      const additionalAmount = Number((clientData as any).additional_amount || 0);
+      const packageTotal = calculateClientPackageTotal(packagePrice, discountAmount, additionalAmount);
+      const newBalance = packageTotal - totalPaidSoFar;
 
       const paymentHistory = [
         ...((existingPayments || []).map(p => ({
@@ -178,7 +181,7 @@ export default function Payments() {
         account_no: newPayment.account_no || null,
         payment_history: paymentHistory,
         status: {
-          status: newBalance <= 0 ? 'Paid' : newBalance < packagePrice ? 'Partially Paid' : 'Pending',
+          status: newBalance <= 0 ? 'Paid' : newBalance < packageTotal ? 'Partially Paid' : 'Pending',
           notes: newPayment.notes || ''
         },
         payment_plan: {
@@ -208,7 +211,6 @@ export default function Payments() {
         amount: '',
         date: '',
         plan: '',
-        discount: '0',
         account_no: '',
         notes: ''
       });
@@ -435,32 +437,12 @@ export default function Payments() {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label className="text-sm">Discount (UGX)</Label>
-                <Input 
-                  type="number" 
-                  className="text-sm"
-                  placeholder="0" 
-                  value={newPayment.discount}
-                  onChange={(e) => setNewPayment({...newPayment, discount: e.target.value})}
-                  min="0"
-                />
-              </div>
-              <div className="space-y-1">
                 <Label className="text-sm">Account number</Label>
                 <Input 
                   className="text-sm"
                   placeholder="AC-1001" 
                   value={newPayment.account_no}
                   onChange={(e) => setNewPayment({...newPayment, account_no: e.target.value})}
-                />
-              </div>
-              <div className="space-y-1 sm:col-span-2 lg:col-span-3">
-                <Label className="text-sm">Notes</Label>
-                <Input 
-                  className="text-sm"
-                  placeholder="Additional notes..." 
-                  value={newPayment.notes}
-                  onChange={(e) => setNewPayment({...newPayment, notes: e.target.value})}
                 />
               </div>
               <div className="flex items-end sm:col-span-2 lg:col-span-3">

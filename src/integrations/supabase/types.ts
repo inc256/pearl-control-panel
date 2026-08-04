@@ -162,31 +162,46 @@ export type Database = {
       clients: {
         Row: {
           address: string | null
+          additional_amount: number | null
           app_id: string | null
+          balance: number | null
           created_at: string
+          discount_amount: number | null
           first_name: string
           id: string
           national_id: string | null
+          paid_amount: number | null
+          package_id: number | null
           second_name: string | null
           updated_at: string
         }
         Insert: {
           address?: string | null
+          additional_amount?: number | null
           app_id?: string | null
+          balance?: number | null
           created_at?: string
+          discount_amount?: number | null
           first_name: string
           id?: string
           national_id?: string | null
+          paid_amount?: number | null
+          package_id?: number | null
           second_name?: string | null
           updated_at?: string
         }
         Update: {
           address?: string | null
+          additional_amount?: number | null
           app_id?: string | null
+          balance?: number | null
           created_at?: string
+          discount_amount?: number | null
           first_name?: string
           id?: string
           national_id?: string | null
+          paid_amount?: number | null
+          package_id?: number | null
           second_name?: string | null
           updated_at?: string
         }

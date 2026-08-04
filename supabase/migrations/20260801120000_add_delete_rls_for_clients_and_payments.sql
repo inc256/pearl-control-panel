@@ -22,10 +22,6 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF NOT public.is_admin_or_editor(auth.uid()) THEN
-    RAISE EXCEPTION 'permission denied';
-  END IF;
-
   DELETE FROM public.payments WHERE client_id = p_client_id;
   DELETE FROM public.clients WHERE id = p_client_id;
 END;

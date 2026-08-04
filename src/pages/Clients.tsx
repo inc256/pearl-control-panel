@@ -20,6 +20,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { Plus, Trash2, Edit, RefreshCw, Wallet } from "lucide-react";
+import { calculateClientPackageTotal } from "@/lib/clientPricing";
 
 type Client = Tables<'clients'>;
 type Package = Tables<'packages'>;
@@ -34,6 +35,7 @@ interface ClientWithDetails extends Client {
   payments?: Payment[];
   calculated_balance?: number;
   calculated_paid?: number;
+  calculated_package_total?: number;
 }
 
 export default function Clients() {
@@ -56,6 +58,8 @@ export default function Clients() {
     address: '',
     app_id: '',
     package_id: '',
+    discount_amount: '0',
+    additional_amount: '0',
     status: 'ready'
   });
 
@@ -74,6 +78,8 @@ export default function Clients() {
           address: parsed.address ?? prev.address,
           app_id: parsed.app_id ?? prev.app_id,
           package_id: parsed.package_id ?? prev.package_id,
+          discount_amount: parsed.discount_amount ?? prev.discount_amount,
+          additional_amount: parsed.additional_amount ?? prev.additional_amount,
           status: parsed.status ?? prev.status,
         }));
         setEditingId(null);
@@ -119,13 +125,17 @@ export default function Clients() {
         const clientPayments = (paymentsData || []).filter(p => p.client_id === client.id);
         const totalPaid = clientPayments.reduce((sum, p) => sum + ((p.total || 0) - (p.discount || 0)), 0);
         const packagePrice = client.packages?.price || 0;
-        const balance = packagePrice - totalPaid;
+        const discountAmount = Number((client as any).discount_amount || 0);
+        const additionalAmount = Number((client as any).additional_amount || 0);
+        const packageTotal = calculateClientPackageTotal(packagePrice, discountAmount, additionalAmount);
+        const balance = packageTotal - totalPaid;
         
         return {
           ...client,
           payments: clientPayments,
           calculated_paid: totalPaid,
-          calculated_balance: balance
+          calculated_balance: balance,
+          calculated_package_total: packageTotal
         };
       });
 
@@ -259,6 +269,12 @@ export default function Clients() {
         appId = `APP-${String(nextNumber).padStart(3, '0')}`;
       }
 
+      const selectedPackage = packages.find(pkg => pkg.id.toString() === newClient.package_id);
+      const packagePrice = Number(selectedPackage?.price || 0);
+      const discountAmount = parseFloat(newClient.discount_amount) || 0;
+      const additionalAmount = parseFloat(newClient.additional_amount) || 0;
+      const packageTotal = calculateClientPackageTotal(packagePrice, discountAmount, additionalAmount);
+
       const clientData = {
         first_name: newClient.first_name.trim(),
         second_name: newClient.second_name.trim(),
@@ -266,7 +282,9 @@ export default function Clients() {
         address: newClient.address?.trim() || null,
         app_id: appId,
         package_id: parseInt(newClient.package_id),
-        balance: 0,
+        discount_amount: discountAmount,
+        additional_amount: additionalAmount,
+        balance: packageTotal,
         paid_amount: 0
       };
 
@@ -316,6 +334,8 @@ export default function Clients() {
         address: '',
         app_id: '',
         package_id: '',
+        discount_amount: '0',
+        additional_amount: '0',
         status: 'ready'
       });
       setError(null);
@@ -361,6 +381,8 @@ export default function Clients() {
       address: client.address || '',
       app_id: client.app_id || '',
       package_id: client.package_id?.toString() || '',
+      discount_amount: String((client as any).discount_amount || 0),
+      additional_amount: String((client as any).additional_amount || 0),
       status: 'ready'
     });
   };
@@ -374,6 +396,8 @@ export default function Clients() {
       address: '',
       app_id: '',
       package_id: '',
+      discount_amount: '0',
+      additional_amount: '0',
       status: 'ready'
     });
   };
@@ -516,6 +540,26 @@ export default function Clients() {
               </Select>
             </div>
             <div className="space-y-1">
+              <Label>Discount (UGX)</Label>
+              <Input 
+                type="number"
+                min="0"
+                placeholder="0" 
+                value={newClient.discount_amount}
+                onChange={(e) => setNewClient({...newClient, discount_amount: e.target.value})}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Extra amount (UGX)</Label>
+              <Input 
+                type="number"
+                min="0"
+                placeholder="0" 
+                value={newClient.additional_amount}
+                onChange={(e) => setNewClient({...newClient, additional_amount: e.target.value})}
+              />
+            </div>
+            <div className="space-y-1">
               <Label>App ID</Label>
               <div className="flex gap-2">
                 <Input 
@@ -611,8 +655,8 @@ export default function Clients() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {client.packages?.price ? 
-                          client.packages.price.toLocaleString() : 
+                        {client.calculated_package_total !== undefined ? 
+                          client.calculated_package_total.toLocaleString() : 
                           '-'
                         }
                       </TableCell>
