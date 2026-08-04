@@ -27,7 +27,7 @@ export const ROLES: Record<AppRole, RoleConfig> = {
     label: 'Tech',
     description: 'Business Summary and Landing only',
     canManageRoles: false,
-    allowedRoutes: ['/', '/business-summary', '/landing', '/landing/packages/new', '/landing/packages/:id'],
+    allowedRoutes: ['/', '/business-summary', '/landing'],
     defaultRoute: '/landing',
   },
   business: {
