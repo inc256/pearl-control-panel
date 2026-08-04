@@ -25,7 +25,7 @@ export const ROLES: Record<AppRole, RoleConfig> = {
   },
   tech: {
     label: 'Tech',
-    description: 'Business Summary and Landing only',
+    description: 'Business Summary and Landing editing',
     canManageRoles: false,
     allowedRoutes: ['/', '/business-summary', '/landing'],
     defaultRoute: '/landing',
@@ -39,15 +39,15 @@ export const ROLES: Record<AppRole, RoleConfig> = {
   },
   media: {
     label: 'Media',
-    description: 'Business Summary only',
+    description: 'Business Summary and Landing editing',
     canManageRoles: false,
-    allowedRoutes: ['/', '/business-summary'],
+    allowedRoutes: ['/', '/business-summary', '/landing'],
     defaultRoute: '/business-summary',
   },
   admin: {
     label: 'Admin',
     description: 'Legacy admin role - full access',
-    canManageRoles: true,
+    canManageRoles: false,
     allowedRoutes: ['/', '/landing', '/landing/packages/new', '/landing/packages/:id', '/business-summary', '/business-statscan', '/bookings', '/clients', '/payments', '/contributions', '/roles'],
     defaultRoute: '/business-summary',
   },

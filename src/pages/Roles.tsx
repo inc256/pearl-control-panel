@@ -33,8 +33,8 @@ export default function Roles() {
     try {
       setLoading(true);
       const [{ data: rolesData, error: rolesError }, { data: profilesData, error: profilesError }] = await Promise.all([
-        supabase.from('user_roles').select('user_id, role'),
-        supabase.from('profiles').select('user_id, email, display_name'),
+        supabase.from('user_roles').select('user_id, role').order('user_id'),
+        supabase.from('profiles').select('user_id, email, display_name').order('user_id'),
       ]);
 
       if (rolesError) throw rolesError;
@@ -50,7 +50,19 @@ export default function Roles() {
           display_name: profile?.display_name || null,
         };
       });
-      setRows(combined);
+
+      const missingProfiles = (rolesData || []).filter(r => !profileMap.has(r.user_id));
+      if (missingProfiles.length > 0) {
+        const fallbackRows = missingProfiles.map(r => ({
+          user_id: r.user_id,
+          role: r.role,
+          email: null,
+          display_name: null,
+        }));
+        setRows([...combined, ...fallbackRows]);
+      } else {
+        setRows(combined);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load roles";
       toast({
