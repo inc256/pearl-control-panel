@@ -25,9 +25,22 @@ if ("serviceWorker" in navigator) {
     });
   } else {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js").catch(() => {
+      navigator.serviceWorker.register("/sw.js").then((registration) => {
+        // Actively check for a new service worker on every load,
+        // instead of waiting for the browser's own (slow) update cycle.
+        registration.update().catch(() => {});
+      }).catch(() => {
         // Service worker registration is optional; app still works without it.
       });
+    });
+
+    // When a new service worker takes control, reload once to pick up
+    // the fresh index.html / assets instead of leaving the old ones cached.
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (refreshing) return;
+      refreshing = true;
+      window.location.reload();
     });
   }
 }
