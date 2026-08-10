@@ -34,18 +34,9 @@ export default function Auth() {
   const [name, setName] = useState("");
   const [role, setRole] = useState<AppRole>('media');
   const [busy, setBusy] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     document.title = "Sign in — Pearl Hijja Admin";
-    
-    // Check for mobile viewport
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 1024);
-    };
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
   if (status === "authenticated" && user) return <Navigate to="/" replace />;
@@ -69,10 +60,10 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-background">
+    <div className="min-h-screen w-full flex flex-col lg:flex-row bg-background">
       {/* Left Panel - Hidden on mobile, shown on tablet/desktop */}
       <div 
-        className="hidden lg:flex lg:w-[45%] xl:w-[50%] 2xl:w-[55%] flex-col justify-between p-8 xl:p-12 2xl:p-16 text-primary-foreground min-h-[40vh] lg:min-h-screen relative overflow-hidden"
+        className="hidden lg:flex lg:w-[45%] xl:w-[50%] 2xl:w-[45%] flex-col justify-between p-8 xl:p-12 2xl:p-16 text-primary-foreground min-h-screen relative overflow-hidden"
         style={{ background: "var(--gradient-burgundy)" }}
       >
         {/* Decorative elements */}
@@ -90,33 +81,15 @@ export default function Auth() {
           </div>
         </div>
 
-        {/* Main content */}
-        <div className="relative z-10 max-w-md mx-auto lg:mx-0 py-8 lg:py-0">
-          <h2 className="font-serif text-3xl xl:text-4xl 2xl:text-5xl leading-tight">
-            Manage every detail of your sacred journeys.
-          </h2>
-          <p className="mt-4 opacity-80 text-sm xl:text-base">
-            A complete CMS and package management system for Pearl Hijja and Umrah Services (U) Ltd.
-          </p>
-          
-          {/* Features grid - hidden on smaller desktops */}
-          <div className="hidden xl:grid grid-cols-2 gap-4 mt-8">
-            <div className="bg-white/5 backdrop-blur-sm rounded-lg p-4 border border-white/10">
-              <div className="flex items-center gap-2 text-sm font-medium">📦 Package Manager</div>
-              <p className="text-xs opacity-70 mt-1">Create & manage Umrah packages</p>
-            </div>
-            <div className="bg-white/5 backdrop-blur-sm rounded-lg p-4 border border-white/10">
-              <div className="flex items-center gap-2 text-sm font-medium">📊 Analytics</div>
-              <p className="text-xs opacity-70 mt-1">Track bookings & performance</p>
-            </div>
-            <div className="bg-white/5 backdrop-blur-sm rounded-lg p-4 border border-white/10">
-              <div className="flex items-center gap-2 text-sm font-medium">👥 User Management</div>
-              <p className="text-xs opacity-70 mt-1">Control team access & roles</p>
-            </div>
-            <div className="bg-white/5 backdrop-blur-sm rounded-lg p-4 border border-white/10">
-              <div className="flex items-center gap-2 text-sm font-medium">📝 Content CMS</div>
-              <p className="text-xs opacity-70 mt-1">Manage pages & blog posts</p>
-            </div>
+        {/* Main content - centered vertically */}
+        <div className="relative z-10 flex-1 flex items-center py-8 lg:py-0">
+          <div className="max-w-md mx-auto lg:mx-0">
+            <h2 className="font-serif text-3xl xl:text-4xl 2xl:text-5xl leading-tight">
+              Manage every detail of your sacred journeys.
+            </h2>
+            <p className="mt-4 opacity-80 text-sm xl:text-base leading-relaxed">
+              A complete CMS and package management system for Pearl Hijja and Umrah Services (U) Ltd.
+            </p>
           </div>
         </div>
 
@@ -127,23 +100,18 @@ export default function Auth() {
       </div>
 
       {/* Right Panel - Full width on mobile, flexible on desktop */}
-      <div className="flex-1 flex items-center justify-center p-4 sm:p-6 md:p-8 lg:p-10 xl:p-12 min-h-screen bg-background">
-        <Card className="w-full max-w-sm sm:max-w-md lg:max-w-lg shadow-[var(--shadow-elegant)] border-border/50">
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-6 md:p-8 lg:p-10 xl:p-12 min-h-screen w-full bg-background">
+        <Card className="w-full max-w-sm sm:max-w-md lg:max-w-lg mx-auto shadow-[var(--shadow-elegant)] border-border/50">
           <CardHeader className="space-y-1 px-4 sm:px-6 pt-6 pb-4">
+            <div className="lg:hidden flex items-center gap-2 mb-1">
+              <Gem className="h-5 w-5 text-primary" />
+              <span className="font-semibold text-lg">Pearl Hijja</span>
+            </div>
             <CardTitle className="text-xl sm:text-2xl font-semibold">
-              {isMobile ? (
-                <span className="flex items-center gap-2">
-                  <Gem className="h-5 w-5 text-primary" />
-                  Pearl Hijja
-                </span>
-              ) : (
-                "Admin access"
-              )}
+              Admin access
             </CardTitle>
             <CardDescription className="text-sm">
-              {isMobile 
-                ? "Sign in to manage your dashboard" 
-                : "Sign in to manage your website and packages."}
+              Sign in to manage your website and packages.
             </CardDescription>
           </CardHeader>
 
