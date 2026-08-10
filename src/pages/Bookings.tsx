@@ -1,4 +1,4 @@
-import AdminLayout from "@/components/admin/AdminLayout";
+import ProtectedPage from "@/components/layout/ProtectedPage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useEffect, useState } from "react";
@@ -11,6 +11,7 @@ type Booking = Tables<'bookings'>;
 type BookingWithDetails = Booking & {
   client_name?: string | null;
   package_name?: string | null;
+  email?: string | null;
 };
 
 export default function Bookings() {
@@ -175,17 +176,17 @@ export default function Bookings() {
 
   if (loading) {
     return (
-      <AdminLayout title="Bookings" description="Client booking details and installment payment tracking">
+      <ProtectedPage title="Bookings" description="Client booking details and installment payment tracking">
         <div className="flex items-center justify-center h-64">
           <p className="text-muted-foreground">Loading bookings...</p>
         </div>
-      </AdminLayout>
+      </ProtectedPage>
     );
   }
 
   if (error) {
     return (
-      <AdminLayout title="Bookings" description="Client booking details and installment payment tracking">
+      <ProtectedPage title="Bookings" description="Client booking details and installment payment tracking">
         <Card>
           <CardContent className="py-8">
             <div className="text-center">
@@ -196,12 +197,12 @@ export default function Bookings() {
             </div>
           </CardContent>
         </Card>
-      </AdminLayout>
+      </ProtectedPage>
     );
   }
 
   return (
-    <AdminLayout title="Bookings" description="Client booking details and installment payment tracking">
+    <ProtectedPage title="Bookings" description="Client booking details and installment payment tracking">
       {/* Filters */}
       <Card className="mb-6">
         <CardHeader>
@@ -314,6 +315,6 @@ export default function Bookings() {
           ))
         )}
       </div>
-    </AdminLayout>
+    </ProtectedPage>
   );
 }

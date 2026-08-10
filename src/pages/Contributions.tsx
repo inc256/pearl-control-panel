@@ -1,4 +1,4 @@
-import AdminLayout from "@/components/admin/AdminLayout";
+import ProtectedPage from "@/components/layout/ProtectedPage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -28,7 +28,7 @@ interface ContributionWithMember extends Contribution {
   member_id?: string;
 }
 
-export default function Contributions() {
+export default function Contributions({ pageTitle = "Contributions" }: { pageTitle?: string }) {
   const { toast } = useToast();
   const [contributions, setContributions] = useState<ContributionWithMember[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
@@ -67,9 +67,9 @@ export default function Contributions() {
   });
 
   useEffect(() => {
-    document.title = "Contributions — Pearl Hijja Admin";
+    document.title = `${pageTitle} — Pearl Hijja Admin`;
     fetchData();
-  }, []);
+  }, [pageTitle]);
 
   const fetchData = async () => {
     try {
@@ -482,16 +482,16 @@ export default function Contributions() {
 
   if (loading) {
     return (
-      <AdminLayout title="Contributions" description="Track member contributions and payment history">
+      <ProtectedPage title="Contributions" description="Track member contributions and payment history">
         <div className="flex items-center justify-center h-64">
           <p className="text-muted-foreground">Loading contributions...</p>
         </div>
-      </AdminLayout>
+      </ProtectedPage>
     );
   }
 
   return (
-    <AdminLayout title="Contributions" description="Track member contributions and payment history">
+    <ProtectedPage title={pageTitle} description="Track member contributions and payment history">
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-600">
           {error}
@@ -903,6 +903,6 @@ export default function Contributions() {
           </div>
         </DialogContent>
       </Dialog>
-    </AdminLayout>
+    </ProtectedPage>
   );
 }

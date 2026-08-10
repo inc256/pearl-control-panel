@@ -6,8 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/auth/useAuth";
 import { ROLES, type AppRole } from "@/lib/roles";
+import type { Database } from "@/integrations/supabase/types";
 import { Shield, UserCog, Loader2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -22,7 +23,8 @@ export default function Roles() {
   const [rows, setRows] = useState<UserRoleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
-  const { role: myRole, refreshRole } = useAuth();
+  const { roles, refreshRole } = useAuth();
+  const myRole = roles[0] ?? "media";
   const { toast } = useToast();
 
   useEffect(() => {
@@ -100,7 +102,7 @@ export default function Roles() {
         const normalizedRole = newRole as AppRole;
         const { error: upsertError } = await supabase
           .from('user_roles')
-          .upsert({ user_id: userId, role: normalizedRole }, { onConflict: 'user_id' });
+          .upsert({ user_id: userId, role: normalizedRole as Database['public']['Enums']['app_role'] }, { onConflict: 'user_id' });
 
         if (upsertError) throw upsertError;
       }

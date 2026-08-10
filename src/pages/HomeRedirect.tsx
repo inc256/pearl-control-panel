@@ -1,25 +1,22 @@
 import { useEffect } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
-import { useAuth } from "@/lib/auth";
-import { ROLES } from "@/lib/roles";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/auth/useAuth";
+
+const DEFAULT_AUTHENTICATED_ROUTE = "/business-summary";
 
 export default function HomeRedirect() {
-  const { user, role, loading } = useAuth();
+  const { user, status } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (loading) return;
+    if (status === "loading") return;
     if (!user) {
       navigate('/auth', { replace: true });
       return;
     }
-    const config = ROLES[role];
-    if (config) {
-      navigate(config.defaultRoute, { replace: true });
-    } else {
-      navigate('/landing', { replace: true });
-    }
-  }, [role, loading, navigate, user]);
+
+    navigate(DEFAULT_AUTHENTICATED_ROUTE, { replace: true });
+  }, [status, navigate, user]);
 
   return (
     <div className="flex items-center justify-center h-64">

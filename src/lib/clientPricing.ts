@@ -8,6 +8,33 @@ export function calculateClientPackageTotal(
   return Math.max(adjustedTotal, 0);
 }
 
+export function resolveClientPaymentTotals({
+  packageTotal,
+  paidAmount,
+  fallbackPaid,
+  balance,
+}: {
+  packageTotal: number;
+  paidAmount?: number | null;
+  fallbackPaid?: number | null;
+  balance?: number | null;
+}) {
+  const normalizedPackageTotal = Number(packageTotal || 0);
+  const normalizedPaidAmount = Number(paidAmount || 0);
+  const normalizedFallbackPaid = Number(fallbackPaid || 0);
+  const derivedPaidFromBalance = typeof balance === "number"
+    ? Math.max(normalizedPackageTotal - Number(balance || 0), 0)
+    : 0;
+
+  const totalPaid = Math.max(normalizedPaidAmount, normalizedFallbackPaid, derivedPaidFromBalance);
+  const remainingBalance = Math.max(normalizedPackageTotal - totalPaid, 0);
+
+  return {
+    totalPaid,
+    balance: remainingBalance,
+  };
+}
+
 export interface PackagePaymentSummary {
   name: string;
   clients: number;

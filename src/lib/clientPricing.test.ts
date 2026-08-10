@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateClientPackageTotal, summarizePackagePayments } from './clientPricing';
+import { calculateClientPackageTotal, resolveClientPaymentTotals, summarizePackagePayments } from './clientPricing';
 
 describe('calculateClientPackageTotal', () => {
   it('applies discount and extra amount to the package base price', () => {
@@ -23,5 +23,35 @@ describe('summarizePackagePayments', () => {
       { name: 'Basic', clients: 1, totalToPay: 500000, totalPaid: 500000, balance: 0 },
       { name: 'Premium', clients: 2, totalToPay: 1900000, totalPaid: 1000000, balance: 900000 },
     ]);
+  });
+});
+
+describe('resolveClientPaymentTotals', () => {
+  it('prefers actual payment totals when stored paid_amount is stale zero', () => {
+    expect(
+      resolveClientPaymentTotals({
+        packageTotal: 1000000,
+        paidAmount: 0,
+        fallbackPaid: 250000,
+        balance: null,
+      })
+    ).toEqual({
+      totalPaid: 250000,
+      balance: 750000,
+    });
+  });
+
+  it('uses the highest consistent payment signal across paid amount, balance, and payment rows', () => {
+    expect(
+      resolveClientPaymentTotals({
+        packageTotal: 900000,
+        paidAmount: 200000,
+        fallbackPaid: 300000,
+        balance: 500000,
+      })
+    ).toEqual({
+      totalPaid: 400000,
+      balance: 500000,
+    });
   });
 });

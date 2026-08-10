@@ -6,7 +6,7 @@ type Booking = Tables<'bookings'>;
 type Notification = Tables<'notifications'>;
 
 export interface CreateBookingData {
-  client_id: string;
+  client_id?: string;
   package_id: number;
   first_name: string;
   second_name?: string | null;
@@ -17,6 +17,29 @@ export interface CreateBookingData {
     details: string;
   };
   booking_date?: string;
+  email?: string;
+}
+
+export function buildBookingInsertPayload(data: CreateBookingData) {
+  const payload: Record<string, unknown> = {
+    package_id: data.package_id,
+    first_name: data.first_name,
+    travelers_no: data.travelers_no || 1,
+    total_amount: data.total_amount,
+    booking_status: "pending",
+    booking_date: data.booking_date || new Date().toISOString().split("T")[0],
+    payment_method: data.payment_method || { method: "pending", details: "" },
+  };
+
+  if (data.client_id) {
+    payload.client_id = data.client_id;
+  }
+
+  if (data.second_name) {
+    payload.second_name = data.second_name;
+  }
+
+  return payload;
 }
 
 export interface BookingWithDetails extends Booking {

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/auth/useAuth";
 import { ROLES, type AppRole } from "@/lib/roles";
 import { Gem, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -14,7 +14,7 @@ import { toast } from "sonner";
 const SIGNUP_ROLES: AppRole[] = ['tech', 'business', 'secretary', 'media'];
 
 export default function Auth() {
-  const { user, loading, signIn, signUp } = useAuth();
+  const { user, status, signIn, signUp } = useAuth();
   const navigate = useNavigate();
   const [tab, setTab] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
@@ -24,7 +24,7 @@ export default function Auth() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => { document.title = "Sign in — Pearl Hijja Admin"; }, []);
-  if (!loading && user) return <Navigate to="/" replace />;
+  if (status === "authenticated" && user) return <Navigate to="/" replace />;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,62 +1,99 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { lazy, Suspense } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { Component, Suspense, useEffect, useState } from "react";
+import { BrowserRouter } from "react-router-dom";
+import type { ReactNode } from "react";
+
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "@/lib/auth";
-import ProtectedRoute from "@/components/ProtectedRoute";
 
-const Auth = lazy(() => import("./pages/Auth"));
-const Landing = lazy(() => import("./pages/Landing"));
-const HomeRedirect = lazy(() => import("./pages/HomeRedirect"));
-const PackageEditor = lazy(() => import("./pages/PackageEditor"));
-const Bookings = lazy(() => import("./pages/Bookings"));
-const BusinessStats = lazy(() => import("./pages/BusinessStats"));
-const BusinessSummary = lazy(() => import("./pages/BusinessSummary"));
-const Roles = lazy(() => import("./pages/Roles"));
-const Clients = lazy(() => import("./pages/Clients"));
-const Payments = lazy(() => import("./pages/Payments"));
-const Contributions = lazy(() => import("./pages/Contributions"));
-const NotFound = lazy(() => import("./pages/NotFound.tsx"));
+import { AuthProvider } from "@/auth/AuthProvider";
+import AppRoutes from "@/routes/AppRoutes";
 
 const queryClient = new QueryClient();
 
-const LoadingSpinner = () => (
-  <div className="flex items-center justify-center h-64">
-    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-  </div>
-);
+interface BeforeInstallPromptEvent extends Event {
+  readonly platforms: string[];
+  readonly userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+  prompt(): Promise<void>;
+}
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner position="top-right" richColors />
-      <BrowserRouter>
-        <AuthProvider>
-          <Suspense fallback={<LoadingSpinner />}>
-            <Routes>
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/" element={<HomeRedirect />} />
-              <Route path="/landing" element={<ProtectedRoute><Landing /></ProtectedRoute>} />
-              <Route path="/landing/packages/:id" element={<ProtectedRoute><PackageEditor /></ProtectedRoute>} />
-              <Route path="/landing/packages/new" element={<ProtectedRoute><PackageEditor /></ProtectedRoute>} />
-              <Route path="/bookings" element={<ProtectedRoute><Bookings /></ProtectedRoute>} />
-              <Route path="/business-stats" element={<Navigate to="/business-statscan" replace />} />
-              <Route path="/business-statscan" element={<ProtectedRoute><BusinessStats /></ProtectedRoute>} />
-              <Route path="/business-summary" element={<ProtectedRoute><BusinessSummary /></ProtectedRoute>} />
-              <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
-              <Route path="/payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />
-              <Route path="/contributions" element={<ProtectedRoute><Contributions /></ProtectedRoute>} />
-              <Route path="/roles" element={<ProtectedRoute allowedRoles={["developer", "secretary"]}><Roles /></ProtectedRoute>} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Suspense>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center h-screen gap-4">
+          <h1 className="text-xl font-semibold">Something went wrong</h1>
+          <p>Please refresh and try again.</p>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+const App = () => {
+  const [deferredInstallPrompt, setDeferredInstallPrompt] =
+    useState<BeforeInstallPromptEvent | null>(null);
+  const [isInstallable, setIsInstallable] = useState(false);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      event.preventDefault();
+      setDeferredInstallPrompt(event as BeforeInstallPromptEvent);
+      setIsInstallable(true);
+    };
+
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredInstallPrompt) return;
+
+    await deferredInstallPrompt.prompt();
+    const { outcome } = await deferredInstallPrompt.userChoice;
+
+    if (outcome === "accepted") {
+      setIsInstallable(false);
+    }
+
+    setDeferredInstallPrompt(null);
+  };
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Sonner />
+        <Toaster />
+
+        <ErrorBoundary>
+          {/* ✅ CRITICAL FIX: Provider wraps everything */}
+          <AuthProvider>
+            <BrowserRouter>
+              <Suspense fallback={<div className="p-6">Loading app...</div>}>
+                <AppRoutes />
+              </Suspense>
+            </BrowserRouter>
+          </AuthProvider>
+        </ErrorBoundary>
+
+        {isInstallable && (
+          <div className="fixed bottom-4 right-4 bg-white shadow p-4 rounded">
+            <p className="mb-2">Install Pearl Admin</p>
+            <button onClick={handleInstallClick}>Install</button>
+          </div>
+        )}
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;

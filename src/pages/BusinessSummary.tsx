@@ -2,7 +2,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { calculateClientPackageTotal, summarizePackagePayments } from "@/lib/clientPricing";
+import { calculateClientPackageTotal, resolveClientPaymentTotals, summarizePackagePayments } from "@/lib/clientPricing";
 import { 
   Users, 
   ArrowUpCircle, 
@@ -134,8 +134,8 @@ export default function BusinessSummary() {
       ] = await Promise.all([
         supabase.from('clients').select('id', { count: 'exact', head: true }),
         supabase.from('bookings').select('*', { count: 'exact', head: false }),
-        supabase.from('income').select('amount'),
-        supabase.from('expenditure').select('amount'),
+        supabase.from('income').select('id, description, amount, date, created_at'),
+        supabase.from('expenditure').select('id, description, amount, date, created_at'),
         supabase.from('payments').select('client_id,total,discount,status'),
         supabase.from('contributions').select('id, first_name, second_name, contribution, total'),
         supabase.from('contact_messages').select('id', { count: 'exact', head: true }),
@@ -200,10 +200,12 @@ export default function BusinessSummary() {
         const fallbackPaid = payments
           .filter((payment: any) => payment.client_id === client.id)
           .reduce((sum: number, payment: any) => sum + ((payment.total ?? payment.amount ?? 0) - (payment.discount ?? 0)), 0);
-        const totalPaid = Number(client.paid_amount ?? fallbackPaid ?? 0);
-        const balance = typeof client.balance === 'number'
-          ? Number(client.balance)
-          : Math.max(packageTotal - totalPaid, 0);
+        const { totalPaid, balance } = resolveClientPaymentTotals({
+          packageTotal,
+          paidAmount: client.paid_amount,
+          fallbackPaid,
+          balance: client.balance,
+        });
 
         return {
           package_name: client.packages?.name || 'Unassigned',
@@ -234,13 +236,13 @@ export default function BusinessSummary() {
         description: row.description || 'Income entry',
         amount: Number(row.amount || 0),
         date: row.date || row.created_at || null,
-      }));
+      })).filter((row) => Boolean(row.description));
       const expenditureList = (expenditureRows || []).map((row: any) => ({
         id: row.id,
         description: row.description || 'Expenditure entry',
         amount: Number(row.amount || 0),
         date: row.date || row.created_at || null,
-      }));
+      })).filter((row) => Boolean(row.description));
 
       setStats({
         clients: clientsRes.count || 0,
@@ -354,7 +356,7 @@ export default function BusinessSummary() {
                 ) : (
                   details.map((item, index) => (
                     <div key={item.id ?? index} className="rounded-md border bg-muted/30 p-3 text-sm">
-                      {renderDetail ? renderDetail(item) : <span>{String(item)}</span>}
+                      {renderDetail ? renderDetail(item) : <span>{String(item.description ?? item.name ?? item)}</span>}
                     </div>
                   ))
                 )}

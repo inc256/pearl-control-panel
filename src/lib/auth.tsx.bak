@@ -1,0 +1,224 @@
+import { supabase } from "@/integrations/supabase/client";
+import type { Session, User } from "@supabase/supabase-js";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import {
+  canAccess,
+  getSidebarItems,
+  hasAnyRole,
+  normalizeRoles,
+  type AppRole,
+} from "@/lib/roles";
+
+export interface AuthContextType {
+  session: Session | null;
+  user: User | null;
+  roles: AppRole[];
+  role: AppRole | null;
+  loading: boolean;
+  isLoading: boolean;
+  error: string | null;
+  getSidebarItems: () => ReturnType<typeof getSidebarItems>;
+  hasAnyRole: (requiredRoles: AppRole[]) => boolean;
+  normalizeRoles: (roles: (string | null | undefined)[] | string | null | undefined) => AppRole[];
+  canAccess: (path: string) => boolean;
+  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string, name: string, role: AppRole) => Promise<{ error: string | null }>;
+  signOut: () => Promise<void>;
+  refreshSession: () => Promise<void>;
+  refreshRoles: () => Promise<void>;
+  refreshRole: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [roles, setRoles] = useState<AppRole[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadRoles = useCallback(async (activeUser: User | null) => {
+    if (!activeUser) {
+      setRoles([]);
+      return;
+    }
+
+    const { data, error: queryError } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", activeUser.id);
+
+    if (queryError) {
+      console.error("Error fetching user roles:", queryError);
+      setError(queryError.message);
+      setRoles(normalizeRoles(["media"]));
+      return;
+    }
+
+    const userRoles = (data ?? []).map((item) => item.role);
+    const nextRoles = normalizeRoles(userRoles.length ? userRoles : ["media"]);
+    setRoles(nextRoles);
+  }, []);
+
+  const refreshSession = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    const {
+      data: { session: currentSession },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError) {
+      setError(sessionError.message);
+      setIsLoading(false);
+      return;
+    }
+
+    const currentUser = currentSession?.user ?? null;
+    setSession(currentSession);
+    setUser(currentUser);
+
+    if (!currentUser) {
+      setRoles([]);
+      setIsLoading(false);
+      return;
+    }
+
+    await loadRoles(currentUser);
+    setIsLoading(false);
+  }, [loadRoles]);
+
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
+      const currentUser = currentSession?.user ?? null;
+      setSession(currentSession);
+      setUser(currentUser);
+      setError(null);
+
+      if (!currentUser) {
+        setRoles([]);
+        setIsLoading(false);
+        return;
+      }
+
+      await loadRoles(currentUser);
+      setIsLoading(false);
+    });
+
+    void refreshSession();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [loadRoles, refreshSession]);
+
+  const signIn = useCallback(async (email: string, password: string) => {
+    setIsLoading(true);
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (signInError) {
+      setError(signInError.message);
+      setIsLoading(false);
+      return { error: signInError.message };
+    }
+
+    const nextSession = data.session;
+    const nextUser = data.user;
+    setSession(nextSession);
+    setUser(nextUser);
+    await loadRoles(nextUser);
+    setIsLoading(false);
+    return { error: null };
+  }, [loadRoles]);
+
+  const signUp = useCallback(async (email: string, password: string, name: string, role: AppRole) => {
+    setIsLoading(true);
+    const { data, error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          display_name: name,
+          role,
+        },
+      },
+    });
+
+    if (signUpError) {
+      setError(signUpError.message);
+      setIsLoading(false);
+      return { error: signUpError.message };
+    }
+
+    const nextSession = data.session;
+    const nextUser = data.user;
+    setSession(nextSession);
+    setUser(nextUser);
+    if (nextUser) {
+      await loadRoles(nextUser);
+    }
+    setIsLoading(false);
+    return { error: null };
+  }, [loadRoles]);
+
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut();
+    setSession(null);
+    setUser(null);
+    setRoles([]);
+    setError(null);
+    setIsLoading(false);
+  }, []);
+
+  const refreshRoles = useCallback(async () => {
+    await loadRoles(user);
+  }, [loadRoles, user]);
+
+  const refreshRole = useCallback(async () => {
+    await refreshRoles();
+  }, [refreshRoles]);
+
+  const value = useMemo(
+    () => ({
+      session,
+      user,
+      roles,
+      role: roles[0] ?? null,
+      loading: isLoading,
+      isLoading,
+      error,
+      getSidebarItems: () => getSidebarItems(roles),
+      hasAnyRole: (requiredRoles: AppRole[]) => hasAnyRole(roles, requiredRoles),
+      normalizeRoles: (rolesToNormalize) => normalizeRoles(rolesToNormalize),
+      canAccess: (path: string) => canAccess(roles, path),
+      signIn,
+      signUp,
+      signOut,
+      refreshSession,
+      refreshRoles,
+      refreshRole,
+    }),
+    [canAccess, error, getSidebarItems, hasAnyRole, isLoading, refreshRole, refreshRoles, refreshSession, roles, signIn, signOut, signUp, session, user]
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error("useAuth must be used within AuthProvider");
+  }
+  return context;
+};

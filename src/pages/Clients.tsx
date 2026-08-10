@@ -1,4 +1,4 @@
-import AdminLayout from "@/components/admin/AdminLayout";
+import ProtectedPage from "@/components/layout/ProtectedPage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,12 +26,14 @@ type Client = Tables<'clients'>;
 type Package = Tables<'packages'>;
 type Payment = Tables<'payments'>;
 
+interface ClientPackageSummary {
+  name: string | null;
+  type: string | null;
+  price: number | null;
+}
+
 interface ClientWithDetails extends Client {
-  packages?: {
-    name: string | null;
-    type: string | null;
-    price: number | null;
-  } | null;
+  packages?: ClientPackageSummary | ClientPackageSummary[] | null;
   payments?: Payment[];
   calculated_balance?: number;
   calculated_paid?: number;
@@ -124,7 +126,8 @@ export default function Clients() {
       const clientsWithBalance = (clientsData || []).map(client => {
         const clientPayments = (paymentsData || []).filter(p => p.client_id === client.id);
         const totalPaid = clientPayments.reduce((sum, p) => sum + ((p.total || 0) - (p.discount || 0)), 0);
-        const packagePrice = client.packages?.price || 0;
+        const packageInfo = Array.isArray(client.packages) ? client.packages[0] : client.packages;
+        const packagePrice = packageInfo?.price ?? 0;
         const discountAmount = Number((client as any).discount_amount || 0);
         const additionalAmount = Number((client as any).additional_amount || 0);
         const packageTotal = calculateClientPackageTotal(packagePrice, discountAmount, additionalAmount);
@@ -355,7 +358,7 @@ export default function Clients() {
     if (!clientToDelete) return;
 
     try {
-      const { error: deleteError } = await supabase.rpc('delete_client_and_payments', {
+      const { error: deleteError } = await (supabase.rpc as any)('delete_client_and_payments', {
         p_client_id: clientToDelete.id
       });
 
@@ -443,16 +446,16 @@ export default function Clients() {
 
   if (loading) {
     return (
-      <AdminLayout title="Clients" description="Manage client profiles, portal IDs, and readiness status">
+      <ProtectedPage title="Clients" description="Manage client profiles, portal IDs, and readiness status">
         <div className="flex items-center justify-center h-64">
           <p className="text-muted-foreground">Loading clients...</p>
         </div>
-      </AdminLayout>
+      </ProtectedPage>
     );
   }
 
   return (
-    <AdminLayout title="Clients" description="Manage client profiles, portal IDs, and readiness status">
+    <ProtectedPage title="Clients" description="Manage client profiles, portal IDs, and readiness status">
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-600">
           {error}
@@ -632,6 +635,7 @@ export default function Clients() {
               <TableBody>
                 {clients.map((client) => {
                   const balanceStatus = getBalanceBadge(client.calculated_balance);
+                  const packageInfo = Array.isArray(client.packages) ? client.packages[0] : client.packages;
                   return (
                     <TableRow key={client.id}>
                       <TableCell className="font-medium">
@@ -641,12 +645,12 @@ export default function Clients() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {client.packages ? (
+                        {packageInfo ? (
                           <div className="flex flex-col gap-1">
-                            <span className="font-medium">{client.packages.name}</span>
-                            {client.packages.type && (
-                              <Badge className={getPackageTypeBadge(client.packages.type)}>
-                                {client.packages.type}
+                            <span className="font-medium">{packageInfo.name}</span>
+                            {packageInfo.type && (
+                              <Badge className={getPackageTypeBadge(packageInfo.type)}>
+                                {packageInfo.type}
                               </Badge>
                             )}
                           </div>
@@ -816,6 +820,6 @@ export default function Clients() {
           </div>
         </div>
       )}
-    </AdminLayout>
+    </ProtectedPage>
   );
 }

@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { uploadImage } from "@/lib/upload";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Loader2, Pencil, X } from "lucide-react";
+import { Plus, Trash2, Loader2, Pencil, X, Copy } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/auth/useAuth";
+import { canManageRoles } from "@/utils/permissions";
 
 const isMissingTableError = (error?: { message?: string }) => error?.message?.includes("Could not find the table");
 
@@ -21,10 +23,12 @@ const isMissingTableError = (error?: { message?: string }) => error?.message?.in
  };
 
 export default function GallerySection() {
+  const { roles } = useAuth();
   const [rows, setRows] = useState<Img[]>([]);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<Partial<Img> | null>(null);
    const ref = useRef<HTMLInputElement>(null);
+   const canEditGallery = canManageRoles(roles) || roles.includes("media") || roles.includes("tech");
 
    const getMediaType = (file: File): 'image' | 'video' => {
      if (file.type.startsWith("video/")) return "video";
@@ -102,14 +106,25 @@ export default function GallerySection() {
     load();
   };
 
+  const copyLink = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copied to clipboard");
+    } catch {
+      toast.error("Unable to copy link");
+    }
+  };
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle>Gallery</CardTitle>
         <div className="flex items-center gap-2">
-           <Button size="sm" disabled={busy} onClick={() => ref.current?.click()}>
-             {busy ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Plus className="h-4 w-4 mr-1" />} Upload media
-           </Button>
+           {canEditGallery && (
+             <Button size="sm" disabled={busy} onClick={() => ref.current?.click()}>
+               {busy ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Plus className="h-4 w-4 mr-1" />} Upload media
+             </Button>
+           )}
           {editing && <Button size="sm" variant="secondary" onClick={() => setEditing(null)}>Cancel edit</Button>}
         </div>
          <input ref={ref} type="file" accept="image/*,video/*" multiple hidden onChange={(e) => onUpload(e.target.files)} />
@@ -143,8 +158,13 @@ export default function GallerySection() {
                  {img.title && <p className="font-medium">{img.title}</p>}
                  {img.category && <p className="text-sm text-muted-foreground">Category: {img.category}</p>}
                  <div className="flex gap-2">
-                   <Button size="sm" variant="ghost" onClick={() => setEditing(img)}><Pencil className="h-4 w-4" /></Button>
-                   <Button size="sm" variant="ghost" onClick={() => remove(img.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                   <Button size="sm" variant="ghost" onClick={() => copyLink(img.image_url)}><Copy className="h-4 w-4" /></Button>
+                   {canEditGallery && (
+                     <>
+                       <Button size="sm" variant="ghost" onClick={() => setEditing(img)}><Pencil className="h-4 w-4" /></Button>
+                       <Button size="sm" variant="ghost" onClick={() => remove(img.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                     </>
+                   )}
                  </div>
                </div>
              </div>
