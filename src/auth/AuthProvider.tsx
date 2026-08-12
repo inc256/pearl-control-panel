@@ -8,6 +8,7 @@ import { getSidebarItems as getSidebarItemsImpl, hasAnyRole as hasAnyRoleImpl, c
 
 const SYNC_CHANNEL = "rbac-sync";
 const SYNC_STORAGE_KEY = "rbac:last-updated";
+const REMEMBER_ME_KEY = "remember_me";
 
 const normalizeAuthRoles = (value: AppRole[] | AppRole | string | null | undefined): AppRole[] => {
   if (!value) {
@@ -44,21 +45,45 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setError(null);
 
     try {
+      const shouldRestoreSession = (() => {
+        try {
+          return localStorage.getItem(REMEMBER_ME_KEY) !== "false";
+        } catch {
+          return true;
+        }
+      })();
+
       const { data, error } = await supabase.auth.getSession();
 
-      if (error || !data?.session?.user) {
+      if (error || !data?.session?.user || !shouldRestoreSession) {
         if (!mountedRef.current || requestIdRef.current !== requestId) return;
+        if (!shouldRestoreSession) {
+          try {
+            await supabase.auth.signOut({ scope: "local" });
+          } catch {
+            // ignore — session may already be cleared
+          }
+        }
         setUser(null);
         setRoles([]);
         setSession(null);
         return;
       }
 
-      const fetchedRoles = await fetchUserRoles(data.session.user.id);
-      if (!mountedRef.current || requestIdRef.current !== requestId) return;
-      setUser({ ...data.session.user, roles: fetchedRoles } as User);
-      setRoles(fetchedRoles);
+      const sessionUser = { ...data.session.user, roles: [] as AppRole[] } as User;
+      setUser(sessionUser);
       setSession(data.session);
+
+      try {
+        const fetchedRoles = await fetchUserRoles(data.session.user.id);
+        if (!mountedRef.current || requestIdRef.current !== requestId) return;
+        setRoles(fetchedRoles);
+        setUser({ ...data.session.user, roles: fetchedRoles } as User);
+      } catch (roleError) {
+        console.error("Failed to fetch user roles:", roleError);
+        setRoles([]);
+        setUser({ ...data.session.user, roles: [] as AppRole[] } as User);
+      }
 
       try {
         localStorage.setItem(SYNC_STORAGE_KEY, String(Date.now()));
@@ -68,15 +93,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
       channelRef.current?.postMessage({ type: "rbac-updated" });
     } catch (unexpectedError) {
       if (!mountedRef.current || requestIdRef.current !== requestId) return;
-      console.error("Failed to refresh user roles:", unexpectedError);
+      console.error("Failed to load session:", unexpectedError);
       setUser(null);
       setSession(null);
       setRoles([]);
       setError((unexpectedError as Error)?.message ?? "Failed to load user");
     } finally {
-      if (!mountedRef.current || requestIdRef.current !== requestId) return;
-      setIsLoading(false);
-      setIsInitialized(true);
+      if (mountedRef.current && requestIdRef.current === requestId) {
+        setIsLoading(false);
+        setIsInitialized(true);
+      }
     }
   }, []);
 
@@ -139,7 +165,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [load]);
 
   // 🔹 Auth actions
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email: string, password: string, rememberMe = true) => {
     setIsLoading(true);
     setError(null);
 
@@ -152,6 +178,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setIsLoading(false);
       setError(error.message);
       return { error: error.message };
+    }
+
+    try {
+      localStorage.setItem(REMEMBER_ME_KEY, String(rememberMe));
+    } catch {
+      // ignore private browsing / storage disabled
     }
 
     await load();

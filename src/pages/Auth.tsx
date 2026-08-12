@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/auth/useAuth";
 import { ROLES, type AppRole } from "@/lib/roles";
 import { Gem, Loader2, Sparkles, Shield, Users, Camera, Briefcase } from "lucide-react";
@@ -33,6 +34,7 @@ export default function Auth() {
   const [name, setName] = useState("");
   const [role, setRole] = useState<AppRole>('media');
   const [busy, setBusy] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
   useEffect(() => {
     document.title = "Sign in — Pearl Hijja Admin";
@@ -44,7 +46,7 @@ export default function Auth() {
     e.preventDefault();
     setBusy(true);
     if (tab === "signin") {
-      const { error } = await signIn(email, password);
+      const { error } = await signIn(email, password, rememberMe);
       if (error) toast.error(error);
       else { toast.success("Welcome back"); navigate("/"); }
     } else {
@@ -156,6 +158,20 @@ export default function Auth() {
                   placeholder="Minimum 6 characters"
                   className="h-10 lg:h-11 text-sm lg:text-base"
                 />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="remember-me"
+                    checked={rememberMe}
+                    onCheckedChange={(checked) => setRememberMe(!!checked)}
+                    className="h-4 w-4"
+                  />
+                  <Label htmlFor="remember-me" className="text-sm font-medium cursor-pointer">
+                    Remember me
+                  </Label>
+                </div>
               </div>
 
               <Button

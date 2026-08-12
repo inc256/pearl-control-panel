@@ -18,6 +18,9 @@ export interface CreateBookingData {
   };
   booking_date?: string;
   email?: string;
+  phone?: string;
+  notes?: string;
+  national_id?: string;
 }
 
 export function buildBookingInsertPayload(data: CreateBookingData) {
@@ -39,10 +42,30 @@ export function buildBookingInsertPayload(data: CreateBookingData) {
     payload.second_name = data.second_name;
   }
 
+  if (data.email) {
+    payload.email = data.email;
+  }
+
+  if (data.phone) {
+    payload.phone = data.phone;
+  }
+
+  if (data.notes) {
+    payload.notes = data.notes;
+  }
+
+  if (data.national_id) {
+    payload.national_id = data.national_id;
+  }
+
   return payload;
 }
 
 export interface BookingWithDetails extends Booking {
+  email?: string | null;
+  phone?: string | null;
+  notes?: string | null;
+  national_id?: string | null;
   clients: {
     first_name: string;
     second_name: string | null;
@@ -88,6 +111,10 @@ export class BookingService {
           payment_method: data.payment_method || { method: 'pending', details: '' },
           booking_status: 'pending',
           booking_date: data.booking_date || new Date().toISOString().split('T')[0],
+          email: data.email || null,
+          phone: data.phone || null,
+          notes: data.notes || null,
+          national_id: data.national_id || null,
         })
         .select()
         .single();

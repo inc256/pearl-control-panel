@@ -12,6 +12,9 @@ type BookingWithDetails = Booking & {
   client_name?: string | null;
   package_name?: string | null;
   email?: string | null;
+  phone?: string | null;
+  notes?: string | null;
+  national_id?: string | null;
 };
 
 export default function Bookings() {
@@ -128,10 +131,15 @@ export default function Bookings() {
       localStorage.setItem('clients.prefill', JSON.stringify({
         first_name: firstName || 'Client',
         second_name: secondName || '',
-        national_id: '',
+        national_id: booking.national_id || '',
+        phone: booking.phone || '',
+        email: booking.email || '',
+        notes: booking.notes || '',
         address: '',
         app_id: '',
         package_id: booking.package_id ? String(booking.package_id) : '',
+        travelers_no: booking.travelers_no || 1,
+        total_amount: booking.total_amount || 0,
         status: 'ready'
       }));
 
@@ -258,24 +266,36 @@ export default function Bookings() {
                   </span>
                 </div>
 
-                <div className="text-sm space-y-1">
-                  <p>
-                    <span className="font-medium">Package:</span>{' '}
-                    {booking.package_name || booking.package_id || 'N/A'}
-                  </p>
-                  <p>
-                    <span className="font-medium">Travelers:</span>{' '}
-                    {booking.travelers_no || '1'}
-                  </p>
-                  <p>
-                    <span className="font-medium">Total:</span>{' '}
-                    {booking.total_amount ? `UGX ${booking.total_amount.toLocaleString()}` : 'N/A'}
-                  </p>
-                  <p>
-                    <span className="font-medium">Date:</span>{' '}
-                    {new Date(booking.created_at).toLocaleDateString()}
-                  </p>
-                </div>
+                 <div className="text-sm space-y-1">
+                   <p>
+                     <span className="font-medium">Package:</span>{' '}
+                     {booking.package_name || booking.package_id || 'N/A'}
+                   </p>
+                   {booking.phone && (
+                     <p>
+                       <span className="font-medium">Phone:</span>{' '}
+                       {booking.phone}
+                     </p>
+                   )}
+                   <p>
+                     <span className="font-medium">Travelers:</span>{' '}
+                     {booking.travelers_no || '1'}
+                   </p>
+                   <p>
+                     <span className="font-medium">Total:</span>{' '}
+                     {booking.total_amount ? `UGX ${booking.total_amount.toLocaleString()}` : 'N/A'}
+                   </p>
+                   <p>
+                     <span className="font-medium">Date:</span>{' '}
+                     {new Date(booking.created_at).toLocaleDateString()}
+                   </p>
+                   {booking.notes && (
+                     <p>
+                       <span className="font-medium">Notes:</span>{' '}
+                       {booking.notes}
+                     </p>
+                   )}
+                 </div>
 
                 <div className="flex flex-wrap gap-2 pt-2 border-t">
                   <Button

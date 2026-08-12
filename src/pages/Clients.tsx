@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -38,6 +39,8 @@ interface ClientWithDetails extends Client {
   calculated_balance?: number;
   calculated_paid?: number;
   calculated_package_total?: number;
+  phone?: string | null;
+  notes?: string | null;
 }
 
 export default function Clients() {
@@ -57,6 +60,8 @@ export default function Clients() {
     first_name: '',
     second_name: '',
     national_id: '',
+    phone: '',
+    notes: '',
     address: '',
     app_id: '',
     package_id: '',
@@ -77,6 +82,8 @@ export default function Clients() {
           first_name: parsed.first_name ?? prev.first_name,
           second_name: parsed.second_name ?? prev.second_name,
           national_id: parsed.national_id ?? prev.national_id,
+          phone: parsed.phone ?? prev.phone,
+          notes: parsed.notes ?? prev.notes,
           address: parsed.address ?? prev.address,
           app_id: parsed.app_id ?? prev.app_id,
           package_id: parsed.package_id ?? prev.package_id,
@@ -291,6 +298,12 @@ export default function Clients() {
         paid_amount: 0
       };
 
+      const clientDataWithExtra = {
+        ...clientData,
+        phone: newClient.phone?.trim() || null,
+        notes: newClient.notes?.trim() || null,
+      };
+
       if (!editingId) {
         const { data: existingClients, error: duplicateError } = await supabase
           .from('clients')
@@ -317,7 +330,7 @@ export default function Clients() {
       if (editingId) {
         const { error } = await supabase
           .from('clients')
-          .update(clientData)
+          .update(clientDataWithExtra as Tables<'clients'>['Update'] & { phone?: string | null; notes?: string | null })
           .eq('id', editingId);
 
         if (error) throw error;
@@ -325,7 +338,7 @@ export default function Clients() {
       } else {
         const { error } = await supabase
           .from('clients')
-          .insert(clientData);
+          .insert(clientDataWithExtra as Tables<'clients'>['Insert'] & { phone?: string | null; notes?: string | null });
 
         if (error) throw error;
       }
@@ -334,6 +347,8 @@ export default function Clients() {
         first_name: '',
         second_name: '',
         national_id: '',
+        phone: '',
+        notes: '',
         address: '',
         app_id: '',
         package_id: '',
@@ -381,6 +396,8 @@ export default function Clients() {
       first_name: client.first_name,
       second_name: client.second_name || '',
       national_id: client.national_id || '',
+      phone: client.phone || '',
+      notes: client.notes || '',
       address: client.address || '',
       app_id: client.app_id || '',
       package_id: client.package_id?.toString() || '',
@@ -396,6 +413,8 @@ export default function Clients() {
       first_name: '',
       second_name: '',
       national_id: '',
+      phone: '',
+      notes: '',
       address: '',
       app_id: '',
       package_id: '',
@@ -505,6 +524,23 @@ export default function Clients() {
                 placeholder="CM1234567" 
                 value={newClient.national_id}
                 onChange={(e) => setNewClient({...newClient, national_id: e.target.value})}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Phone</Label>
+              <Input 
+                placeholder="07XXXXXXXX" 
+                value={newClient.phone}
+                onChange={(e) => setNewClient({...newClient, phone: e.target.value})}
+              />
+            </div>
+            <div className="xl:col-span-2 space-y-1">
+              <Label>Notes</Label>
+              <Textarea 
+                placeholder="Additional notes (if available)" 
+                value={newClient.notes}
+                onChange={(e) => setNewClient({...newClient, notes: e.target.value})}
+                className="min-h-[60px]"
               />
             </div>
             <div className="space-y-1">
