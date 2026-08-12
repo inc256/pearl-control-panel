@@ -601,12 +601,6 @@ export default function BusinessStats() {
 
   return (
     <AdminLayout title="Business Stats" description="Track income, expenditure, and performance indicators">
-      {/* Hero Section */}
-      <div className="rounded-xl p-4 sm:p-6 md:p-8 mb-4 sm:mb-6 text-primary-foreground" style={{ background: "var(--gradient-burgundy)" }}>
-        <p className="text-[10px] sm:text-xs uppercase tracking-wider opacity-80">Pearl Hijja and Umrah Services (U) Ltd</p>
-        <h2 className="font-serif text-xl sm:text-2xl md:text-3xl mt-1">Welcome to Pearl Admin Console.</h2>
-        <p className="opacity-90 text-xs sm:text-sm mt-1 sm:mt-2 max-w-xl">Manage the business statistics and performance indicators.</p>
-      </div>
 
       {loadingError && (
         <Card className="mb-4 sm:mb-6 border-destructive">

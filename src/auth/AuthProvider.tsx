@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { SIDEBAR_ITEMS } from "@/config/sidebar";
 import { AuthContext } from "./AuthContext";
 import type { AuthContextValue, AuthProviderProps, User } from "./types";
 import type { Session } from "@supabase/supabase-js";
 import type { AppRole } from "@/types/roles";
+import { getSidebarItems as getSidebarItemsImpl, hasAnyRole as hasAnyRoleImpl, canAccess as canAccessImpl, normalizeRoles } from "@/lib/rbac";
 
-const TEMP_AUTH_ROLES: AppRole[] = ["developer"];
+const SYNC_CHANNEL = "rbac-sync";
+const SYNC_STORAGE_KEY = "rbac:last-updated";
 
 const normalizeAuthRoles = (value: AppRole[] | AppRole | string | null | undefined): AppRole[] => {
   if (!value) {
@@ -16,6 +17,15 @@ const normalizeAuthRoles = (value: AppRole[] | AppRole | string | null | undefin
   return (Array.isArray(value) ? value : [value]).filter(Boolean) as AppRole[];
 };
 
+async function fetchUserRoles(userId: string): Promise<AppRole[]> {
+  const { data, error } = await supabase.from("user_roles").select("role").eq("user_id", userId);
+  if (error || !data) {
+    return [];
+  }
+
+  return normalizeRoles(data.map((item) => item.role));
+}
+
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -23,57 +33,117 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const channelRef = useRef<BroadcastChannel | null>(null);
+  const mountedRef = useRef(true);
+  const requestIdRef = useRef(0);
   const status: "loading" | "authenticated" | "unauthenticated" = isLoading ? "loading" : user ? "authenticated" : "unauthenticated";
 
-  // 🔹 Refresh user
-  const refreshUser = useCallback(async () => {
+  const load = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
+    setError(null);
 
-    const { data, error } = await supabase.auth.getUser();
+    try {
+      const { data, error } = await supabase.auth.getSession();
 
-    if (error || !data.user) {
+      if (error || !data?.session?.user) {
+        if (!mountedRef.current || requestIdRef.current !== requestId) return;
+        setUser(null);
+        setRoles([]);
+        setSession(null);
+        return;
+      }
+
+      const fetchedRoles = await fetchUserRoles(data.session.user.id);
+      if (!mountedRef.current || requestIdRef.current !== requestId) return;
+      setUser({ ...data.session.user, roles: fetchedRoles } as User);
+      setRoles(fetchedRoles);
+      setSession(data.session);
+
+      try {
+        localStorage.setItem(SYNC_STORAGE_KEY, String(Date.now()));
+      } catch {
+        // ignore private browsing / storage disabled
+      }
+      channelRef.current?.postMessage({ type: "rbac-updated" });
+    } catch (unexpectedError) {
+      if (!mountedRef.current || requestIdRef.current !== requestId) return;
+      console.error("Failed to refresh user roles:", unexpectedError);
       setUser(null);
       setSession(null);
       setRoles([]);
+      setError((unexpectedError as Error)?.message ?? "Failed to load user");
+    } finally {
+      if (!mountedRef.current || requestIdRef.current !== requestId) return;
       setIsLoading(false);
-      return;
+      setIsInitialized(true);
     }
-
-    setUser({ ...data.user, roles: TEMP_AUTH_ROLES } as User);
-    setRoles(TEMP_AUTH_ROLES);
-    setIsLoading(false);
   }, []);
 
   // 🔹 Auth state listener
   useEffect(() => {
-    const { data } = supabase.auth.onAuthStateChange(async (_, session) => {
-      setSession(session);
-
-      if (!session?.user) {
-        setUser(null);
-        setRoles([]);
-        setIsLoading(false);
-        setIsInitialized(true);
-        return;
-      }
-
-      setUser({ ...session.user, roles: TEMP_AUTH_ROLES } as User);
-      setRoles(TEMP_AUTH_ROLES);
-      setIsLoading(false);
-      setIsInitialized(true);
+    const { data } = supabase.auth.onAuthStateChange(() => {
+      load();
     });
 
-    refreshUser().finally(() => setIsInitialized(true));
-
     return () => data.subscription.unsubscribe();
-  }, [refreshUser]);
+  }, [load]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    load();
+    return () => {
+      mountedRef.current = false;
+    };
+  }, [load]);
+
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return;
+    const bc = new BroadcastChannel(SYNC_CHANNEL);
+    channelRef.current = bc;
+    bc.onmessage = (evt) => {
+      if (evt.data?.type === "rbac-updated") {
+        load();
+      }
+    };
+    return () => {
+      bc.close();
+      channelRef.current = null;
+    };
+  }, [load]);
+
+  useEffect(() => {
+    function onStorage(event: StorageEvent) {
+      if (event.key === SYNC_STORAGE_KEY) {
+        load();
+      }
+    }
+
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [load]);
+
+  useEffect(() => {
+    function onVisibility() {
+      if (document.visibilityState === "visible") {
+        load();
+      }
+    }
+
+    window.addEventListener("focus", load);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", load);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [load]);
 
   // 🔹 Auth actions
   const signIn = async (email: string, password: string) => {
     setIsLoading(true);
     setError(null);
 
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -84,20 +154,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return { error: error.message };
     }
 
-    setUser(data.user ? { ...data.user, roles: TEMP_AUTH_ROLES } : null);
-    setRoles(data.user ? TEMP_AUTH_ROLES : []);
-    setSession(data.session);
-    setIsLoading(false);
-
+    await load();
     return { error: null };
   };
 
-  const signUp = async (email: string, password: string, _name: string, _role: AppRole) => {
+  const signUp = async (email: string, password: string, displayName: string, role: AppRole) => {
     setError(null);
 
-    const { error } = await supabase.auth.signUp({
+    const normalizedDisplayName = displayName.trim();
+
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          display_name: normalizedDisplayName,
+          role,
+        },
+      },
     });
 
     if (error) {
@@ -105,6 +179,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return { error: error.message };
     }
 
+    // Profile and role rows are created server-side by the auth trigger using
+    // raw_user_meta_data, so client-side inserts are blocked by RLS.
     return { error: null };
   };
 
@@ -115,6 +191,42 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setRoles([]);
     setError(null);
   };
+
+  const refreshRoles = useCallback(async () => {
+    if (!user) {
+      setRoles([]);
+      return;
+    }
+
+    const refreshedRoles = await fetchUserRoles(user.id);
+    setRoles(refreshedRoles);
+  }, [user]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      return;
+    }
+
+    const channel = supabase
+      .channel(`user_roles_${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "user_roles",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          refreshRoles();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [refreshRoles, user?.id]);
 
   // 🔹 Context value
   const value: AuthContextValue = {
@@ -129,18 +241,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
     signIn,
     signUp,
     signOut,
-    refreshUser,
-    refreshSession: refreshUser,
+    refreshUser: load,
+    refreshSession: load,
     refreshRoles: async () => {
-      setRoles(user ? TEMP_AUTH_ROLES : []);
+      if (!user) {
+        setRoles([]);
+        return;
+      }
+
+      const refreshedRoles = await fetchUserRoles(user.id);
+      setRoles(refreshedRoles);
     },
     refreshRole: async () => {
-      setRoles(user ? TEMP_AUTH_ROLES : []);
+      if (!user) {
+        setRoles([]);
+        return;
+      }
+
+      const refreshedRoles = await fetchUserRoles(user.id);
+      setRoles(refreshedRoles);
     },
-    getSidebarItems: () => SIDEBAR_ITEMS,
-    hasAnyRole: () => !!user,
+    getSidebarItems: () => getSidebarItemsImpl(roles),
+    hasAnyRole: (requiredRoles) => hasAnyRoleImpl(roles, requiredRoles),
     normalizeRoles: normalizeAuthRoles,
-    canAccess: () => !!user,
+    canAccess: (path) => canAccessImpl(roles, path),
   };
 
   if (!isInitialized || isLoading) {

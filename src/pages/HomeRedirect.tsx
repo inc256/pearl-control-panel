@@ -1,11 +1,10 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/useAuth";
-
-const DEFAULT_AUTHENTICATED_ROUTE = "/business-summary";
+import { getDefaultRoute } from "@/lib/rbac";
 
 export default function HomeRedirect() {
-  const { user, status } = useAuth();
+  const { user, status, roles } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -15,8 +14,11 @@ export default function HomeRedirect() {
       return;
     }
 
-    navigate(DEFAULT_AUTHENTICATED_ROUTE, { replace: true });
-  }, [status, navigate, user]);
+    const targetRoute = getDefaultRoute(roles);
+    if (targetRoute !== window.location.pathname) {
+      navigate(targetRoute, { replace: true });
+    }
+  }, [status, navigate, user, roles]);
 
   return (
     <div className="flex items-center justify-center h-64">

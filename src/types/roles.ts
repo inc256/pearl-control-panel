@@ -6,10 +6,7 @@ export type AppRole =
   | "admin"
   | "media"
   | "business"
-  | "editor"
-  | "tech"
-  | "client"
-  | "agent";
+  | "tech";
 
 export interface Permission {
   key: string;

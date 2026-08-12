@@ -4,7 +4,7 @@ import { LogOut, Menu, X, Gem } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/auth/useAuth";
 import { cn } from "@/lib/utils";
-import { SIDEBAR_ITEMS } from "@/config/sidebar";
+import { filterSidebar } from "@/lib/rbac";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -14,7 +14,7 @@ interface AdminLayoutProps {
 
 export default function AdminLayout({ children, title, description }: AdminLayoutProps) {
   const [open, setOpen] = useState(false);
-  const { user, signOut } = useAuth();
+  const { user, signOut, roles } = useAuth();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -22,7 +22,7 @@ export default function AdminLayout({ children, title, description }: AdminLayou
     navigate("/auth", { replace: true });
   };
 
-  const visibleNav = SIDEBAR_ITEMS;
+  const visibleNav = filterSidebar(roles);
 
   const sidebarContent = (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">

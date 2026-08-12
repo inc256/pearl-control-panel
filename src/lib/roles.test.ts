@@ -11,7 +11,7 @@ import {
 } from "./roles";
 
 describe("hasRouteAccess", () => {
-  it("allows only developer and media roles to access landing page routes", () => {
+  it("allows developer, media, and tech roles to access landing page routes", () => {
     expect(hasRouteAccess("developer", "/landing")).toBe(true);
     expect(hasRouteAccess("developer", "/landing/packages/new")).toBe(false);
     expect(hasRouteAccess("developer", "/landing/packages/123")).toBe(false);
@@ -20,7 +20,7 @@ describe("hasRouteAccess", () => {
     expect(hasRouteAccess("media", "/landing/packages/new")).toBe(false);
     expect(hasRouteAccess("media", "/landing/packages/123")).toBe(false);
 
-    expect(hasRouteAccess("tech", "/landing")).toBe(false);
+    expect(hasRouteAccess("tech", "/landing")).toBe(true);
   });
 
   it("supports multi-role access for routes and navigation", () => {
@@ -38,41 +38,23 @@ describe("hasRouteAccess", () => {
     expect(sidebar.some(item => item.route === "/payments")).toBe(false);
   });
 
-  it("shows the contribution list for non-secretary and non-editor roles, while keeping Roles developer-only", () => {
-    const clientSidebar = getSidebarItems("client");
-    expect(clientSidebar.some(item => item.title === "Contribution List")).toBe(true);
-    expect(clientSidebar.some(item => item.title === "Roles")).toBe(false);
-    expect(canAccess("client", "/contributions")).toBe(true);
-    expect(canAccess("client", "/roles")).toBe(false);
+  it("shows contribution list access for allowed roles and keeps Roles developer-only", () => {
+    expect(canAccess("media", "/contributionlist")).toBe(true);
+    expect(canAccess("business", "/contributionlist")).toBe(true);
+    expect(canAccess("tech", "/contributionlist")).toBe(true);
+    expect(canAccess("admin", "/contributionlist")).toBe(true);
+    expect(canAccess("secretary", "/contributionlist")).toBe(true);
+    expect(canAccess("developer", "/contributionlist")).toBe(true);
 
-    const agentSidebar = getSidebarItems("agent");
-    expect(agentSidebar.some(item => item.title === "Contribution List")).toBe(true);
-    expect(agentSidebar.some(item => item.title === "Roles")).toBe(false);
+    expect(canAccess("media", "/contributions")).toBe(false);
+    expect(canAccess("business", "/contributions")).toBe(false);
+    expect(canAccess("tech", "/contributions")).toBe(false);
+    expect(canAccess("admin", "/contributions")).toBe(false);
+    expect(canAccess("secretary", "/contributions")).toBe(false);
 
-    const clientSidebarItems = getSidebarItems("client");
-    expect(clientSidebarItems.some(item => item.route === "/roles")).toBe(false);
-    expect(clientSidebarItems.some(item => item.route === "/contributionlist")).toBe(true);
-    expect(clientSidebarItems.some(item => item.route === "/contributions")).toBe(false);
-    expect(canAccess("client", "/contributionlist")).toBe(true);
-    expect(canAccess("client", "/contributions")).toBe(true);
-
-    const mediaSidebarItems = getSidebarItems("media");
-    expect(mediaSidebarItems.some(item => item.route === "/contributions")).toBe(false);
-    expect(mediaSidebarItems.some(item => item.route === "/contributionlist")).toBe(true);
-
-    const editorSidebarItems = getSidebarItems("editor");
-    expect(editorSidebarItems.some(item => item.route === "/contributionlist")).toBe(false); // editor should not see it
-    expect(hasRouteAccess("editor", "/contributionlist")).toBe(false);
-
-    const developerSidebarItems = getSidebarItems("developer");
-    expect(developerSidebarItems.some(item => item.route === "/contributionlist")).toBe(true);
-    expect(hasRouteAccess("developer", "/contributionlist")).toBe(true);
-
-    const adminSidebarItems = getSidebarItems("admin");
-    expect(adminSidebarItems.some(item => item.route === "/contributionlist")).toBe(true);
-
-    const secretarySidebarItems = getSidebarItems("secretary");
-    expect(secretarySidebarItems.some(item => item.route === "/contributionlist")).toBe(false);
+    expect(hasRouteAccess("developer", "/roles")).toBe(true);
+    expect(hasRouteAccess("admin", "/roles")).toBe(false);
+    expect(hasRouteAccess("secretary", "/roles")).toBe(false);
   });
 
 
@@ -83,12 +65,15 @@ describe("hasRouteAccess", () => {
     expect(ROLES.media.canManageRoles).toBe(false);
     expect(ROLES.business.canManageRoles).toBe(false);
     expect(ROLES.admin.canManageRoles).toBe(false);
-    expect(ROLES.editor.canManageRoles).toBe(false);
   });
 
-  it("uses the contribution list as the default route for client and agent users", () => {
-    expect(getDefaultRoute("client")).toBe("/contributionlist");
-    expect(getDefaultRoute("agent")).toBe("/contributionlist");
+  it("returns the proper default route for each allowed role", () => {
+    expect(getDefaultRoute("developer")).toBe("/business-summary");
+    expect(getDefaultRoute("secretary")).toBe("/business-statscan");
+    expect(getDefaultRoute("admin")).toBe("/business-summary");
+    expect(getDefaultRoute("business")).toBe("/business-summary");
+    expect(getDefaultRoute("media")).toBe("/landing");
+    expect(getDefaultRoute("tech")).toBe("/landing");
   });
 
   describe("normalizeRole", () => {

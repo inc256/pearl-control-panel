@@ -3,7 +3,7 @@ import type { AppRole, SidebarItem } from "@/types/roles";
 
 export type MaybeRole = AppRole | string | null | undefined;
 
-const ROLE_PRIORITY: AppRole[] = ["developer", "secretary", "admin", "business", "media", "editor", "tech", "client", "agent"];
+const ROLE_PRIORITY: AppRole[] = ["developer", "secretary", "admin", "business", "media", "tech"];
 
 const ROLE_ALIASES: Record<string, AppRole> = {
   technician: "tech",
@@ -16,10 +16,7 @@ const KNOWN_ROLES = new Set<AppRole>([
   "admin",
   "media",
   "business",
-  "editor",
   "tech",
-  "client",
-  "agent",
 ]);
 
 export function normalizeRole(role: string | undefined | null): AppRole {
@@ -73,8 +70,6 @@ export function hasRouteAccess(roleOrRoles: MaybeRole[] | MaybeRole, path: strin
     return config.allowedRoutes.some((allowed) => {
       const normalizedAllowed = normalizeRoutePath(allowed);
       if (normalizedPath === normalizedAllowed) return true;
-      if (normalizedPath === "/contributionlist" && ["/contributions", "/contributionlist"].includes(normalizedAllowed)) return true;
-      if (normalizedPath === "/contributions" && ["/contributions", "/contributionlist"].includes(normalizedAllowed)) return true;
       const sidebarItem = NAVIGATION_CONFIG.sidebarItems.find((item) => normalizeRoutePath(item.route) === normalizedAllowed);
       if (!sidebarItem?.end && normalizedPath.startsWith(normalizedAllowed + "/")) return true;
       return false;
@@ -107,9 +102,6 @@ export function getDefaultRoute(roles: MaybeRole[] | MaybeRole): string {
   const priorityRole = ROLE_PRIORITY.find((role) => normalizedRoles.includes(role));
   if (!priorityRole) return "/contributionlist";
   const config = NAVIGATION_CONFIG.roles[priorityRole];
-  if (priorityRole === "client" || priorityRole === "agent") {
-    return "/contributionlist";
-  }
   return config?.defaultRoute ?? "/contributionlist";
 }
 

@@ -48,9 +48,13 @@ export default function Auth() {
       if (error) toast.error(error);
       else { toast.success("Welcome back"); navigate("/"); }
     } else {
-      const { error } = await signUp(email, password, name, role);
-      if (error) toast.error(error);
-      else toast.success("Account created — you can now sign in.");
+      if (!name.trim()) {
+        toast.error("Please enter a display name.");
+      } else {
+        const { error } = await signUp(email, password, name, role);
+        if (error) toast.error(error);
+        else toast.success("Account created — you can now sign in.");
+      }
     }
     setBusy(false);
   };
@@ -95,6 +99,7 @@ export default function Auth() {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder="Enter your name"
+                      required
                       className="h-10 lg:h-11 text-sm lg:text-base"
                     />
                   </div>
@@ -118,10 +123,6 @@ export default function Auth() {
                         ))}
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                      <Sparkles className="h-3 w-3" />
-                      Developer access reserved for lunainc256@gmail.com
-                    </p>
                   </div>
                 </div>
               )}
@@ -165,12 +166,6 @@ export default function Auth() {
                 {busy && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 {tab === "signin" ? "Sign in" : "Create account"}
               </Button>
-
-              {tab === "signup" && (
-                <p className="text-xs text-muted-foreground text-center px-2">
-                  First signup gets <span className="font-semibold text-primary">Developer</span> access by default.
-                </p>
-              )}
             </form>
           </Tabs>
 

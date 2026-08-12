@@ -12,14 +12,14 @@ import type { AppRole, NavigationConfig, SidebarItem } from "@/types/roles";
 
 export const SIDEBAR_ITEMS: SidebarItem[] = [
   { title: "Business Summary", route: "/business-summary", icon: PieChart, requiredRoles: ["developer", "admin", "business"] },
-  { title: "Business Stats", route: "/business-statscan", icon: BarChart3, requiredRoles: ["developer", "secretary", "editor"] },
+  { title: "Business Stats", route: "/business-statscan", icon: BarChart3, requiredRoles: ["developer", "secretary"] },
   { title: "Bookings", route: "/bookings", icon: ClipboardList, requiredRoles: ["developer", "secretary"] },
-  { title: "Clients", route: "/clients", icon: Users, requiredRoles: ["developer", "secretary", "admin", "editor"] },
-  { title: "Payments", route: "/payments", icon: CreditCard, requiredRoles: ["developer", "secretary", "editor"] },
+  { title: "Clients", route: "/clients", icon: Users, requiredRoles: ["developer", "secretary", "admin"] },
+  { title: "Payments", route: "/payments", icon: CreditCard, requiredRoles: ["developer", "secretary"] },
   { title: "Contributions", route: "/contributions", icon: LayoutDashboard, requiredRoles: ["developer", "secretary"] },
-  { title: "Contribution List", route: "/contributionlist", icon: ClipboardList, requiredRoles: ["developer", "admin", "business", "media", "tech", "client", "agent"] },
+  { title: "Contribution List", route: "/contributionlist", icon: ClipboardList, requiredRoles: ["developer", "secretary", "admin", "business", "media", "tech"] },
   { title: "Roles", route: "/roles", icon: UserCog, requiredRoles: ["developer"] },
-  { title: "Landing Page", route: "/landing", icon: FileText, requiredRoles: ["developer", "media"], end: true },
+  { title: "Landing Page", route: "/landing", icon: FileText, requiredRoles: ["developer", "media", "tech"], end: true },
 ];
 
 const ROLE_DEFINITIONS: Record<AppRole, { label: string; description: string; canManageRoles: boolean; allowedRoutes: string[]; defaultRoute: string }> = {
@@ -32,9 +32,9 @@ const ROLE_DEFINITIONS: Record<AppRole, { label: string; description: string; ca
   },
   secretary: {
     label: "Secretary",
-    description: "Business Stats, Bookings, Clients, Payments, Contributions",
+    description: "Business Stats, Bookings, Clients, Payments, Contributions, Contribution List",
     canManageRoles: false,
-    allowedRoutes: ["/", "/business-statscan", "/bookings", "/clients", "/payments", "/contributions"],
+    allowedRoutes: ["/", "/business-statscan", "/bookings", "/clients", "/payments", "/contributions", "/contributionlist"],
     defaultRoute: "/business-statscan",
   },
   admin: {
@@ -58,33 +58,12 @@ const ROLE_DEFINITIONS: Record<AppRole, { label: string; description: string; ca
     allowedRoutes: ["/", "/business-summary", "/contributionlist"],
     defaultRoute: "/business-summary",
   },
-  editor: {
-    label: "Editor",
-    description: "Business Stats, Clients, Payments",
-    canManageRoles: false,
-    allowedRoutes: ["/", "/business-statscan", "/clients", "/payments"],
-    defaultRoute: "/business-statscan",
-  },
   tech: {
     label: "Tech",
-    description: "Contribution List access",
+    description: "Contribution List and Landing access",
     canManageRoles: false,
-    allowedRoutes: ["/", "/contributionlist"],
-    defaultRoute: "/contributionlist",
-  },
-  client: {
-    label: "Client",
-    description: "Contribution List access",
-    canManageRoles: false,
-    allowedRoutes: ["/", "/contributionlist"],
-    defaultRoute: "/contributionlist",
-  },
-  agent: {
-    label: "Agent",
-    description: "Contribution List access",
-    canManageRoles: false,
-    allowedRoutes: ["/", "/contributionlist"],
-    defaultRoute: "/contributionlist",
+    allowedRoutes: ["/", "/landing", "/contributionlist"],
+    defaultRoute: "/landing",
   },
 };
 

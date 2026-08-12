@@ -8,15 +8,15 @@ export interface PermissionConfig {
 }
 
 export const PERMISSIONS: PermissionConfig = {
-  "dashboard:view": { roles: ["developer", "secretary", "admin", "business", "media", "tech", "editor", "client", "agent"], description: "View dashboard" },
+  "dashboard:view": { roles: ["developer", "secretary", "admin", "business", "media", "tech"], description: "View dashboard" },
   "dashboard:admin": { roles: ["developer", "secretary", "admin"], description: "Access admin dashboard features" },
   "users:view": { roles: ["developer"], description: "View users" },
   "users:create": { roles: ["developer"], description: "Create users" },
-  "bookings:view": { roles: ["developer", "secretary", "editor", "admin", "business", "client", "agent"] , description: "View bookings" },
-  "clients:view": { roles: ["developer", "secretary", "admin", "editor"], description: "View clients" },
+  "bookings:view": { roles: ["developer", "secretary", "admin", "business"], description: "View bookings" },
+  "clients:view": { roles: ["developer", "secretary", "admin"], description: "View clients" },
   "media:view": { roles: ["developer", "media"], description: "View media" },
   "finance:view": { roles: ["developer", "secretary", "admin"], description: "View finance" },
-  "reports:view": { roles: ["developer", "secretary", "admin", "business", "editor"], description: "View reports" },
+  "reports:view": { roles: ["developer", "secretary", "admin", "business"], description: "View reports" },
   "settings:view": { roles: ["developer"], description: "View settings" },
 };
 

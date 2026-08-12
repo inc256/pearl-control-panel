@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/auth/useAuth";
+import { getDefaultRoute } from "@/lib/rbac";
 import type { AppRole } from "@/types/roles";
 
 interface ProtectedRouteProps {
@@ -9,7 +10,7 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children, requiredRoles }: ProtectedRouteProps) {
-  const { user, status } = useAuth();
+  const { user, status, canAccess, roles } = useAuth();
   const location = useLocation();
 
   if (status === "loading") {
@@ -25,6 +26,11 @@ export default function ProtectedRoute({ children, requiredRoles }: ProtectedRou
 
   if (!user) {
     return <Navigate to="/auth" replace state={{ from: location }} />;
+  }
+
+  if (location.pathname !== "/" && !canAccess(location.pathname)) {
+    const fallbackRoute = roles.length ? getDefaultRoute(roles) : "/contributionlist";
+    return <Navigate to={fallbackRoute} replace state={{ from: location }} />;
   }
 
   return <>{children}</>;

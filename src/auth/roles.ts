@@ -1,15 +1,12 @@
 import type { AppRole } from "@/types/roles";
 
 export const ROLE_HIERARCHY: Record<AppRole, AppRole[]> = {
-  developer: ["developer", "secretary", "admin", "business", "media", "tech", "editor", "client", "agent"],
-  secretary: ["secretary", "editor", "client", "agent"],
-  admin: ["admin", "business", "media", "client", "agent"],
-  media: ["media", "client", "agent"],
-  business: ["business", "client", "agent"],
-  editor: ["editor", "client", "agent"],
-  tech: ["tech", "client", "agent"],
-  client: ["client"],
-  agent: ["agent"],
+  developer: ["developer", "secretary", "admin", "business", "media", "tech"],
+  secretary: ["secretary"],
+  admin: ["admin", "business", "media", "tech"],
+  media: ["media"],
+  business: ["business", "media", "tech"],
+  tech: ["tech"],
 };
 
 export const ROLE_DISPLAY_NAMES: Record<AppRole, string> = {
@@ -18,10 +15,7 @@ export const ROLE_DISPLAY_NAMES: Record<AppRole, string> = {
   admin: "Admin",
   media: "Media",
   business: "Business",
-  editor: "Editor",
   tech: "Tech",
-  client: "Client",
-  agent: "Agent",
 };
 
 export const ROLE_DESCRIPTIONS: Record<AppRole, string> = {
@@ -30,10 +24,7 @@ export const ROLE_DESCRIPTIONS: Record<AppRole, string> = {
   admin: "Can manage business summary, clients, and contribution list",
   media: "Can manage landing page and contribution list",
   business: "Can view business summary and contribution list",
-  editor: "Can view stats, clients, and payments",
   tech: "Can view contribution list",
-  client: "Can view contribution list",
-  agent: "Can view contribution list",
 };
 
 export const getRolesFromHierarchy = (role: AppRole): AppRole[] => ROLE_HIERARCHY[role] || [role];
@@ -43,10 +34,10 @@ export const hasPermissionByHierarchy = (userRoles: AppRole[], requiredRole: App
 };
 
 export const getHighestRole = (roles: AppRole[]): AppRole | null => {
-  const hierarchy: AppRole[] = ["developer", "secretary", "admin", "business", "media", "tech", "editor", "client", "agent"];
+  const hierarchy: AppRole[] = ["developer", "secretary", "admin", "business", "media", "tech"];
   return hierarchy.find((role) => roles.includes(role)) ?? null;
 };
 
 export const isValidRole = (role: string): role is AppRole => {
-  return ["developer", "secretary", "admin", "media", "business", "editor", "tech", "client", "agent"].includes(role);
+  return ["developer", "secretary", "admin", "media", "business", "tech"].includes(role);
 };
