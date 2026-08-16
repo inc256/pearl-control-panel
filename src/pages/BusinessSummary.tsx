@@ -251,6 +251,7 @@ export default function BusinessSummary() {
         bookingsConfirmed: bookings.filter((b: any) => (b.booking_status || '').toLowerCase() === 'confirmed').length,
         bookingsCompleted: bookings.filter((b: any) => (b.booking_status || '').toLowerCase() === 'completed').length,
         bookingsCancelled: bookings.filter((b: any) => (b.booking_status || '').toLowerCase() === 'cancelled').length,
+        bookingRevenue: bookingRevenue,
         income: incomeTotal,
         expenditure: expenditureTotal,
         net: incomeTotal - expenditureTotal,
@@ -466,9 +467,11 @@ export default function BusinessSummary() {
             <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium">{item.name}</span>
-                <span className="text-xs text-muted-foreground">UGX {Number(item.paid || 0).toLocaleString()}</span>
+                <span className="text-xs text-muted-foreground">Balance UGX {Number(item.balance || 0).toLocaleString()}</span>
               </div>
-              <span className="text-xs text-muted-foreground">Total UGX {Number(item.total || 0).toLocaleString()} • Balance UGX {Number(item.balance || 0).toLocaleString()}</span>
+              <span className="text-xs text-muted-foreground">
+                Total UGX {Number(item.total || 0).toLocaleString()} • Paid UGX {Number(item.paid || 0).toLocaleString()}
+              </span>
             </div>
           )}
         />

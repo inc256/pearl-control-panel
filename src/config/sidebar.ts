@@ -11,7 +11,7 @@ import {
 import type { AppRole, NavigationConfig, SidebarItem } from "@/types/roles";
 
 export const SIDEBAR_ITEMS: SidebarItem[] = [
-  { title: "Business Summary", route: "/business-summary", icon: PieChart, requiredRoles: ["developer", "admin", "business"] },
+  { title: "Business Summary", route: "/business-summary", icon: PieChart, requiredRoles: ["developer", "admin", "business", "secretary"] },
   { title: "Business Stats", route: "/business-statscan", icon: BarChart3, requiredRoles: ["developer", "secretary"] },
   { title: "Bookings", route: "/bookings", icon: ClipboardList, requiredRoles: ["developer", "secretary"] },
   { title: "Clients", route: "/clients", icon: Users, requiredRoles: ["developer", "secretary", "admin"] },
@@ -34,7 +34,7 @@ const ROLE_DEFINITIONS: Record<AppRole, { label: string; description: string; ca
     label: "Secretary",
     description: "Business Stats, Bookings, Clients, Payments, Contributions, Contribution List",
     canManageRoles: false,
-    allowedRoutes: ["/", "/business-statscan", "/bookings", "/clients", "/payments", "/contributions", "/contributionlist"],
+    allowedRoutes: ["/", "/business-summary", "/business-statscan", "/bookings", "/clients", "/payments", "/contributions", "/contributionlist"],
     defaultRoute: "/business-statscan",
   },
   admin: {
