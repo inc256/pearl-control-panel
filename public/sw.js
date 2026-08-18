@@ -1,9 +1,12 @@
 const CACHE_VERSION = 'v2'; // bump this string on every deploy that needs a hard cache bust
 const CACHE_NAME = `pearl-pwa-${CACHE_VERSION}`;
+
 const PRECACHE_URLS = [
+  '/',
+  '/index.html',
   '/manifest.webmanifest',
-  '/icons/icon-192.svg',
-  '/icons/icon-512.svg'
+  '/icons/icon-192.jpg',
+  '/icons/icon-512.jpg'
 ];
 
 const DEV_ONLY_PATH_PREFIXES = ['/src/', '/node_modules/', '/@vite/', '/@fs/'];
@@ -24,18 +27,25 @@ function isImmutableAsset(request) {
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS))
+    caches.open(CACHE_NAME).then((cache) =>
+      cache.addAll(PRECACHE_URLS).catch((err) => {
+        console.error('[sw] Precache failed — check that every PRECACHE_URLS entry returns 200:', err);
+        throw err; // keep install failing loudly; a silent partial cache is worse
+      })
+    )
   );
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(
-      keys.map((key) => {
-        if (key !== CACHE_NAME) return caches.delete(key);
-      })
-    ))
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys.map((key) => {
+          if (key !== CACHE_NAME) return caches.delete(key);
+        })
+      )
+    )
   );
   self.clients.claim();
 });
@@ -44,30 +54,60 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   if (shouldBypassCache(event.request)) return;
 
-  // Navigation requests (HTML) and anything not in /assets/: ALWAYS go to network first.
   const isNavigation = event.request.mode === 'navigate';
+
+  // Navigation requests (HTML) and anything not in /assets/: ALWAYS go to network first.
   if (isNavigation || !isImmutableAsset(event.request)) {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          return response;
-        })
-        .catch(() => caches.match(event.request).then((cached) => cached || caches.match('/index.html')))
-    );
+    event.respondWith(networkFirst(event.request));
     return;
   }
 
   // Hashed assets: cache-first is safe, since the filename changes when content changes.
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request).then((response) => {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-        return response;
-      });
-    })
-  );
+  event.respondWith(cacheFirst(event.request));
 });
+
+async function networkFirst(request) {
+  try {
+    const response = await fetch(request);
+    // Only cache genuinely OK responses — don't cache opaque/error responses.
+    if (response && response.ok) {
+      const clone = response.clone();
+      caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+    }
+    return response;
+  } catch (err) {
+    const cached = await caches.match(request);
+    if (cached) return cached;
+
+    const fallback = await caches.match('/index.html');
+    if (fallback) return fallback;
+
+    // Last resort — guarantees respondWith() never receives undefined.
+    return new Response('You are offline and this page is not cached yet.', {
+      status: 503,
+      statusText: 'Offline',
+      headers: { 'Content-Type': 'text/plain' }
+    });
+  }
+}
+
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+
+  try {
+    const response = await fetch(request);
+    if (response && response.ok) {
+      const clone = response.clone();
+      caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+    }
+    return response;
+  } catch (err) {
+    // No cached copy and network failed — return a real Response, not undefined.
+    return new Response('Asset unavailable offline.', {
+      status: 504,
+      statusText: 'Gateway Timeout',
+      headers: { 'Content-Type': 'text/plain' }
+    });
+  }
+}

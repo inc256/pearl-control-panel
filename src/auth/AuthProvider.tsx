@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { AuthContext } from "./AuthContext";
 import type { AuthContextValue, AuthProviderProps, User } from "./types";
-import type { Session } from "@supabase/supabase-js";
+import type { Session, AuthChangeEvent } from "@supabase/supabase-js";
 import type { AppRole } from "@/types/roles";
 import { getSidebarItems as getSidebarItemsImpl, hasAnyRole as hasAnyRoleImpl, canAccess as canAccessImpl, normalizeRoles } from "@/lib/rbac";
 
@@ -31,7 +31,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
+  // isLoading now ONLY reflects the initial app load — it blocks the UI.
   const [isLoading, setIsLoading] = useState(true);
+  // isRefreshing reflects background revalidation (focus, token refresh, etc.)
+  // and never unmounts children.
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
@@ -39,9 +43,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const requestIdRef = useRef(0);
   const status: "loading" | "authenticated" | "unauthenticated" = isLoading ? "loading" : user ? "authenticated" : "unauthenticated";
 
-  const load = useCallback(async () => {
+  // `background` = true means "don't touch isLoading, this is a silent revalidation"
+  const load = useCallback(async (background = false) => {
     const requestId = ++requestIdRef.current;
-    setIsLoading(true);
+
+    if (background) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
     setError(null);
 
     try {
@@ -100,16 +110,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setError((unexpectedError as Error)?.message ?? "Failed to load user");
     } finally {
       if (mountedRef.current && requestIdRef.current === requestId) {
-        setIsLoading(false);
+        if (background) {
+          setIsRefreshing(false);
+        } else {
+          setIsLoading(false);
+        }
         setIsInitialized(true);
       }
     }
   }, []);
 
-  // 🔹 Auth state listener
+  // 🔹 Auth state listener — only do a BLOCKING load for events that
+  // actually change who's signed in. TOKEN_REFRESHED fires silently on
+  // every tab refocus and must not unmount the app.
   useEffect(() => {
-    const { data } = supabase.auth.onAuthStateChange(() => {
-      load();
+    const { data } = supabase.auth.onAuthStateChange((event: AuthChangeEvent) => {
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") {
+        load(false);
+      } else {
+        // TOKEN_REFRESHED, INITIAL_SESSION (after first mount), PASSWORD_RECOVERY, etc.
+        load(true);
+      }
     });
 
     return () => data.subscription.unsubscribe();
@@ -117,7 +138,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     mountedRef.current = true;
-    load();
+    load(false); // initial load — this one is allowed to block
     return () => {
       mountedRef.current = false;
     };
@@ -129,7 +150,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     channelRef.current = bc;
     bc.onmessage = (evt) => {
       if (evt.data?.type === "rbac-updated") {
-        load();
+        load(true); // background — roles changed in another tab, don't unmount
       }
     };
     return () => {
@@ -141,7 +162,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     function onStorage(event: StorageEvent) {
       if (event.key === SYNC_STORAGE_KEY) {
-        load();
+        load(true); // background sync from another tab
       }
     }
 
@@ -149,20 +170,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => window.removeEventListener("storage", onStorage);
   }, [load]);
 
+  // Revalidate on refocus, but ONLY in the background — never unmount the app
+  // just because the user switched tabs for a couple of seconds.
   useEffect(() => {
     function onVisibility() {
-      if (document.visibilityState === "visible") {
-        load();
+      if (document.visibilityState === "visible" && isInitialized) {
+        load(true);
       }
     }
 
-    window.addEventListener("focus", load);
+    function onFocus() {
+      if (isInitialized) {
+        load(true);
+      }
+    }
+
+    window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
-      window.removeEventListener("focus", load);
+      window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [load]);
+  }, [load, isInitialized]);
 
   // 🔹 Auth actions
   const signIn = async (email: string, password: string, rememberMe = true) => {
@@ -186,7 +215,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // ignore private browsing / storage disabled
     }
 
-    await load();
+    await load(false);
     return { error: null };
   };
 
@@ -268,13 +297,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     status,
     loading: isLoading,
     isLoading,
+    isRefreshing,
     isAuthenticated: !!user,
     error,
     signIn,
     signUp,
     signOut,
-    refreshUser: load,
-    refreshSession: load,
+    refreshUser: () => load(true),
+    refreshSession: () => load(true),
     refreshRoles: async () => {
       if (!user) {
         setRoles([]);
@@ -299,7 +329,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     canAccess: (path) => canAccessImpl(roles, path),
   };
 
-  if (!isInitialized || isLoading) {
+  // Only the very first load blocks the UI. Every later revalidation
+  // (focus, token refresh, cross-tab sync) happens silently in the
+  // background and never unmounts `children`.
+  if (!isInitialized) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <p className="text-sm text-muted-foreground">Loading your workspace…</p>
