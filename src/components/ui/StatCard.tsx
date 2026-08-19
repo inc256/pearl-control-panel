@@ -45,7 +45,7 @@ const StatCard = <T extends any>({
   className = "",
   compact = false,
   showViewButton = true,
-  viewButtonText = "View Details",
+  viewButtonText = "View",
   modalMaxWidth = "2xl",
   onViewClick,
   itemsPerPage = 50,

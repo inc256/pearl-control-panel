@@ -517,7 +517,7 @@ export default function BusinessSummary() {
           details={stats.clientsList}
           detailTitle="All Clients"
           renderDetail={renderClientDetail}
-          viewButtonText="View Details"
+          viewButtonText="View"
         />
 
         <StatCard
@@ -529,23 +529,7 @@ export default function BusinessSummary() {
           details={stats.fullyPaidClientsList}
           detailTitle="Fully Paid Clients"
           renderDetail={renderFullyPaidDetail}
-          viewButtonText="View Details"
-        />
-
-        <StatCard
-          title="Total Bookings"
-          value={stats.bookings}
-          icon={<Package className="h-5 w-5" />}
-          color="purple"
-          hint={`${stats.bookingsConfirmed} confirmed • ${stats.bookingsPending} pending`}
-        />
-
-        <StatCard
-          title="Travelers"
-          value={stats.travelers}
-          icon={<UserCheck className="h-5 w-5" />}
-          color="indigo"
-          hint={`${stats.confirmedTravelers} confirmed travelers`}
+          viewButtonText="View"
         />
       </div>
 
@@ -569,7 +553,7 @@ export default function BusinessSummary() {
             details={stats.incomeList}
             detailTitle="Income Transactions"
             renderDetail={renderIncomeDetail}
-            viewButtonText="View Details"
+            viewButtonText="View"
           />
 
           <StatCard
@@ -582,7 +566,7 @@ export default function BusinessSummary() {
             details={stats.expenditureList}
             detailTitle="Expenditure Transactions"
             renderDetail={renderExpenditureDetail}
-            viewButtonText="View Details"
+            viewButtonText="View"
           />
 
           <StatCard
@@ -624,7 +608,7 @@ export default function BusinessSummary() {
             details={stats.contributionsPaidList}
             detailTitle="Contributions Paid"
             renderDetail={renderContributionDetail}
-            viewButtonText="View Details"
+            viewButtonText="View"
           />
 
           <StatCard

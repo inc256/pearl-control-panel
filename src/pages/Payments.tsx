@@ -633,7 +633,7 @@ export default function Payments() {
                               size="sm"
                               onClick={() => handleViewDetails(payment)}
                               className="h-8 w-8 p-0"
-                              title="View details"
+                              title="View"
                             >
                               <Eye className="h-3.5 w-3.5" />
                             </Button>
