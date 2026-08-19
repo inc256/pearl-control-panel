@@ -125,11 +125,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // every tab refocus and must not unmount the app.
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((event: AuthChangeEvent) => {
+      // The first INITIAL_SESSION event is handled by the explicit initial load below.
+      // Loading it again can race the blocking request and leave isLoading stuck.
+      if (event === "INITIAL_SESSION") {
+        return;
+      }
+
       if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") {
         load(false);
-      } else {
-        // TOKEN_REFRESHED, INITIAL_SESSION (after first mount), PASSWORD_RECOVERY, etc.
-        load(true);
       }
     });
 
@@ -169,29 +172,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, [load]);
-
-  // Revalidate on refocus, but ONLY in the background — never unmount the app
-  // just because the user switched tabs for a couple of seconds.
-  useEffect(() => {
-    function onVisibility() {
-      if (document.visibilityState === "visible" && isInitialized) {
-        load(true);
-      }
-    }
-
-    function onFocus() {
-      if (isInitialized) {
-        load(true);
-      }
-    }
-
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [load, isInitialized]);
 
   // 🔹 Auth actions
   const signIn = async (email: string, password: string, rememberMe = true) => {

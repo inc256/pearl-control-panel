@@ -4,9 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
-import { Loader2, Users, Wallet, TrendingUp, Clock } from "lucide-react";
+import { Loader2, Users, Wallet, TrendingUp, Clock, Search, Filter, ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 
 type Contribution = Tables<'contributions'>;
 
@@ -23,6 +25,10 @@ export default function ContributionList() {
   const [rows, setRows] = useState<ContributionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [showFilters, setShowFilters] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     document.title = "Contributions — Pearl Hijja Admin";
@@ -98,48 +104,68 @@ export default function ContributionList() {
     return { label: "N/A", variant: "secondary" };
   };
 
+  const toggleRowExpand = (id: string) => {
+    setExpandedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const filteredRows = rows.filter(row => {
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch = row.memberName.toLowerCase().includes(searchLower);
+    const status = getPaymentStatus(row.balance, row.paid);
+    const matchesStatus = filterStatus === 'all' || status.label.toLowerCase().replace(' ', '-') === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
+
   return (
     <ProtectedPage title="Contributions" description="A read-only view of contribution records">
-      <div className="space-y-6">
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="space-y-4 sm:space-y-6">
+        {/* Summary Cards - Responsive Grid */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="rounded-lg bg-blue-50 p-3 dark:bg-blue-950/50">
-                  <Users className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+            <CardContent className="p-3 sm:p-6">
+              <div className="flex items-center gap-2 sm:gap-4">
+                <div className="rounded-lg bg-blue-50 p-2 sm:p-3 dark:bg-blue-950/50">
+                  <Users className="h-4 w-4 sm:h-6 sm:w-6 text-blue-600 dark:text-blue-400" />
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Members</p>
-                  <p className="text-2xl font-semibold">{summary.memberCount}</p>
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-sm font-medium text-muted-foreground truncate">Members</p>
+                  <p className="text-lg sm:text-2xl font-semibold">{summary.memberCount}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="rounded-lg bg-green-50 p-3 dark:bg-green-950/50">
-                  <Wallet className="h-6 w-6 text-green-600 dark:text-green-400" />
+            <CardContent className="p-3 sm:p-6">
+              <div className="flex items-center gap-2 sm:gap-4">
+                <div className="rounded-lg bg-green-50 p-2 sm:p-3 dark:bg-green-950/50">
+                  <Wallet className="h-4 w-4 sm:h-6 sm:w-6 text-green-600 dark:text-green-400" />
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Total Expected</p>
-                  <p className="text-2xl font-semibold">UGX {summary.total.toLocaleString()}</p>
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-sm font-medium text-muted-foreground truncate">Expected</p>
+                  <p className="text-sm sm:text-2xl font-semibold truncate">UGX {summary.total.toLocaleString()}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="rounded-lg bg-emerald-50 p-3 dark:bg-emerald-950/50">
-                  <TrendingUp className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+            <CardContent className="p-3 sm:p-6">
+              <div className="flex items-center gap-2 sm:gap-4">
+                <div className="rounded-lg bg-emerald-50 p-2 sm:p-3 dark:bg-emerald-950/50">
+                  <TrendingUp className="h-4 w-4 sm:h-6 sm:w-6 text-emerald-600 dark:text-emerald-400" />
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Total Paid</p>
-                  <p className="text-2xl font-semibold text-emerald-600 dark:text-emerald-400">
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-sm font-medium text-muted-foreground truncate">Paid</p>
+                  <p className="text-sm sm:text-2xl font-semibold text-emerald-600 dark:text-emerald-400 truncate">
                     UGX {summary.paid.toLocaleString()}
                   </p>
                 </div>
@@ -148,14 +174,14 @@ export default function ContributionList() {
           </Card>
 
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="rounded-lg bg-amber-50 p-3 dark:bg-amber-950/50">
-                  <Clock className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+            <CardContent className="p-3 sm:p-6">
+              <div className="flex items-center gap-2 sm:gap-4">
+                <div className="rounded-lg bg-amber-50 p-2 sm:p-3 dark:bg-amber-950/50">
+                  <Clock className="h-4 w-4 sm:h-6 sm:w-6 text-amber-600 dark:text-amber-400" />
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Outstanding Balance</p>
-                  <p className="text-2xl font-semibold text-amber-600 dark:text-amber-400">
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-sm font-medium text-muted-foreground truncate">Balance</p>
+                  <p className="text-sm sm:text-2xl font-semibold text-amber-600 dark:text-amber-400 truncate">
                     UGX {summary.balance.toLocaleString()}
                   </p>
                 </div>
@@ -166,11 +192,11 @@ export default function ContributionList() {
 
         {/* Progress Bar */}
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Overall Payment Progress</span>
-                <span className="font-medium">{summary.paidPercentage.toFixed(1)}%</span>
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
+                <span className="text-xs sm:text-sm text-muted-foreground">Overall Payment Progress</span>
+                <span className="text-sm sm:text-base font-medium">{summary.paidPercentage.toFixed(1)}%</span>
               </div>
               <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
                 <div
@@ -178,105 +204,262 @@ export default function ContributionList() {
                   style={{ width: `${Math.min(summary.paidPercentage, 100)}%` }}
                 />
               </div>
+              <div className="flex flex-col xs:flex-row justify-between gap-1 text-[10px] sm:text-xs text-muted-foreground">
+                <span>UGX {summary.paid.toLocaleString()} collected</span>
+                <span className="hidden xs:inline">•</span>
+                <span>UGX {summary.balance.toLocaleString()} remaining</span>
+              </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Main Table */}
-        <Card>
-          <CardHeader className="space-y-2">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <Card className="border shadow-sm">
+          <CardHeader className="space-y-2 border-b p-3 sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <CardTitle className="text-2xl">Contribution List</CardTitle>
-                <p className="text-sm text-muted-foreground">
+                <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+                  <Wallet className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+                  Contribution List
+                </CardTitle>
+                <p className="text-[10px] sm:text-sm text-muted-foreground mt-0.5">
                   This view is read-only. No add, edit, or delete actions are available here.
                 </p>
               </div>
-              <Badge variant="outline" className="w-fit">
-                {rows.length} members
+              <Badge variant="outline" className="w-fit text-xs sm:text-sm">
+                {filteredRows.length} of {rows.length} members
               </Badge>
             </div>
+
+            {/* Search and Filters - Responsive */}
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-col xs:flex-row gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search members..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-8 h-8 sm:h-9 text-xs sm:text-sm w-full"
+                  />
+                </div>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="h-8 sm:h-9 px-2 sm:px-3 text-xs sm:text-sm flex items-center gap-1 sm:gap-2 shrink-0"
+                >
+                  <Filter className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="hidden xs:inline">Filters</span>
+                  {showFilters ? <ChevronUp className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> : <ChevronDown className="h-3 w-3 sm:h-3.5 sm:w-3.5" />}
+                </Button>
+              </div>
+              
+              {/* Filters - Collapsible */}
+              <div className={`flex flex-col sm:flex-row gap-2 transition-all duration-200 ${showFilters ? 'block' : 'hidden sm:flex'}`}>
+                <Select value={filterStatus} onValueChange={setFilterStatus}>
+                  <SelectTrigger className="h-8 sm:h-9 text-xs sm:text-sm w-full sm:w-[150px]">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="fully-paid">Fully Paid</SelectItem>
+                    <SelectItem value="partial">Partial</SelectItem>
+                    <SelectItem value="not-started">Not Started</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             {loading ? (
-              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                <Loader2 className="h-8 w-8 animate-spin" />
-                <p className="mt-4 text-sm">Loading contributions...</p>
+              <div className="flex flex-col items-center justify-center py-12 sm:py-16 text-muted-foreground">
+                <Loader2 className="h-8 w-8 sm:h-10 sm:w-10 animate-spin" />
+                <p className="mt-3 sm:mt-4 text-sm">Loading contributions...</p>
               </div>
             ) : error ? (
-              <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive">
-                <p className="text-sm">{error}</p>
+              <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 sm:p-4 text-destructive m-3 sm:m-4">
+                <p className="text-xs sm:text-sm">{error}</p>
               </div>
-            ) : rows.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                <Wallet className="h-12 w-12 opacity-20" />
-                <p className="mt-4 text-sm">No contributions recorded yet.</p>
+            ) : filteredRows.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 sm:py-16 text-muted-foreground">
+                <Wallet className="h-10 w-10 sm:h-12 sm:w-12 opacity-20" />
+                <p className="mt-3 sm:mt-4 text-sm text-center px-4">
+                  {searchTerm || filterStatus !== 'all' 
+                    ? 'No members match your filters' 
+                    : 'No contributions recorded yet.'}
+                </p>
+                {(searchTerm || filterStatus !== 'all') && (
+                  <p className="text-xs sm:text-sm mt-1">Try adjusting your search or filters</p>
+                )}
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-lg border">
-                <Table>
-                  <TableHeader className="bg-muted/50">
-                    <TableRow>
-                      <TableHead className="font-semibold">Member</TableHead>
-                      <TableHead className="text-right font-semibold">Total</TableHead>
-                      <TableHead className="text-right font-semibold">Paid</TableHead>
-                      <TableHead className="text-right font-semibold">Balance</TableHead>
-                      <TableHead className="font-semibold">Status</TableHead>
-                      <TableHead className="font-semibold">Last Payment</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rows.map((row) => {
-                      const status = getPaymentStatus(row.balance, row.paid);
-                      const progress = row.total > 0 ? (row.paid / row.total) * 100 : 0;
+              <>
+                {/* Desktop Table View - Hidden on mobile */}
+                <div className="hidden md:block overflow-x-auto">
+                  <Table>
+                    <TableHeader className="bg-muted/50">
+                      <TableRow>
+                        <TableHead className="font-semibold text-xs">Member</TableHead>
+                        <TableHead className="text-right font-semibold text-xs">Total</TableHead>
+                        <TableHead className="text-right font-semibold text-xs">Paid</TableHead>
+                        <TableHead className="text-right font-semibold text-xs">Balance</TableHead>
+                        <TableHead className="text-right font-semibold text-xs">Progress</TableHead>
+                        <TableHead className="font-semibold text-xs">Status</TableHead>
+                        <TableHead className="font-semibold text-xs">Last Payment</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredRows.map((row) => {
+                        const status = getPaymentStatus(row.balance, row.paid);
+                        const progress = row.total > 0 ? (row.paid / row.total) * 100 : 0;
 
-                      return (
-                        <TableRow key={row.id} className="hover:bg-muted/30">
-                          <TableCell className="font-medium">{row.memberName}</TableCell>
-                          <TableCell className="text-right font-medium">
-                            UGX {row.total.toLocaleString()}
-                          </TableCell>
-                          <TableCell className="text-right text-emerald-600 dark:text-emerald-400">
-                            UGX {row.paid.toLocaleString()}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {row.balance > 0 ? (
-                              <span className="font-medium text-amber-600 dark:text-amber-400">
-                                UGX {row.balance.toLocaleString()}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={
-                                status.variant as "success" | "warning" | "destructive" | "secondary"
-                              }
-                              className="capitalize"
-                            >
-                              {status.label}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {row.lastPaymentDate ? (
-                              <span className="text-sm">
-                                {new Date(row.lastPaymentDate).toLocaleDateString("en-US", {
-                                  year: "numeric",
-                                  month: "short",
-                                  day: "numeric",
-                                })}
-                              </span>
-                            ) : (
-                              <span className="text-sm text-muted-foreground">—</span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+                        return (
+                          <TableRow key={row.id} className="hover:bg-muted/30 transition-colors">
+                            <TableCell className="font-medium text-sm">{row.memberName}</TableCell>
+                            <TableCell className="text-right font-medium text-sm">
+                              UGX {row.total.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-right text-emerald-600 dark:text-emerald-400 font-medium text-sm">
+                              UGX {row.paid.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {row.balance > 0 ? (
+                                <span className="font-medium text-amber-600 dark:text-amber-400 text-sm">
+                                  UGX {row.balance.toLocaleString()}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center justify-end gap-2">
+                                <span className="text-sm font-medium">{Math.round(progress)}%</span>
+                                <div className="h-1.5 w-16 overflow-hidden rounded-full bg-secondary">
+                                  <div
+                                    className="h-full bg-gradient-to-r from-emerald-500 to-green-500 transition-all duration-500"
+                                    style={{ width: `${Math.min(progress, 100)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={status.variant as "success" | "warning" | "destructive" | "secondary"}
+                                className="capitalize text-[10px]"
+                              >
+                                {status.label}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {row.lastPaymentDate ? (
+                                <span className="text-sm">
+                                  {new Date(row.lastPaymentDate).toLocaleDateString("en-US", {
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                  })}
+                                </span>
+                              ) : (
+                                <span className="text-sm text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Mobile Card View - Visible on mobile */}
+                <div className="md:hidden divide-y divide-border">
+                  {filteredRows.map((row) => {
+                    const status = getPaymentStatus(row.balance, row.paid);
+                    const progress = row.total > 0 ? (row.paid / row.total) * 100 : 0;
+                    const isExpanded = expandedRows.has(row.id);
+
+                    return (
+                      <div key={row.id} className="p-3 sm:p-4 hover:bg-muted/30 transition-colors">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-sm sm:text-base">{row.memberName}</span>
+                              <Badge
+                                variant={status.variant as "success" | "warning" | "destructive" | "secondary"}
+                                className="capitalize text-[10px]"
+                              >
+                                {status.label}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-2 mt-1 flex-wrap text-xs sm:text-sm">
+                              <span className="text-muted-foreground">Balance:</span>
+                              {row.balance > 0 ? (
+                                <span className="font-medium text-amber-600 dark:text-amber-400">
+                                  UGX {row.balance.toLocaleString()}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">Fully Paid ✓</span>
+                              )}
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleRowExpand(row.id)}
+                            className="h-7 w-7 sm:h-8 sm:w-8 p-0 shrink-0 ml-2"
+                          >
+                            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </Button>
+                        </div>
+
+                        {/* Progress bar always visible */}
+                        <div className="mt-2 flex items-center gap-3">
+                          <span className="text-xs font-medium">{Math.round(progress)}%</span>
+                          <div className="flex-1 h-1.5 overflow-hidden rounded-full bg-secondary">
+                            <div
+                              className="h-full bg-gradient-to-r from-emerald-500 to-green-500 transition-all duration-500"
+                              style={{ width: `${Math.min(progress, 100)}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Expanded details */}
+                        {isExpanded && (
+                          <div className="mt-3 pt-3 border-t border-border space-y-2">
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                              <div>
+                                <span className="text-muted-foreground">Total:</span>
+                                <span className="ml-1 font-medium">UGX {row.total.toLocaleString()}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Paid:</span>
+                                <span className="ml-1 font-medium text-emerald-600 dark:text-emerald-400">
+                                  UGX {row.paid.toLocaleString()}
+                                </span>
+                              </div>
+                              <div className="col-span-2">
+                                <span className="text-muted-foreground">Last Payment:</span>
+                                <span className="ml-1">
+                                  {row.lastPaymentDate ? (
+                                    new Date(row.lastPaymentDate).toLocaleDateString("en-US", {
+                                      year: "numeric",
+                                      month: "short",
+                                      day: "numeric",
+                                    })
+                                  ) : (
+                                    <span className="text-muted-foreground">—</span>
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </CardContent>
         </Card>

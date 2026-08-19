@@ -1,8 +1,11 @@
+// pages/admin/business-summary.tsx
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateClientPackageTotal, resolveClientPaymentTotals, summarizePackagePayments } from "@/lib/clientPricing";
+import StatCard from "@/components/ui/StatCard";
 import { 
   Users, 
   ArrowUpCircle, 
@@ -11,8 +14,10 @@ import {
   TrendingUp,
   CircleCheckBig,
   Star,
-  Eye,
-  X
+  Package,
+  Target,
+  UserCheck,
+  ShoppingBag
 } from "lucide-react";
 
 interface Stats {
@@ -22,21 +27,19 @@ interface Stats {
   bookingsConfirmed: number;
   bookingsCompleted: number;
   bookingsCancelled: number;
-  bookingRevenue: number;
   income: number;
   expenditure: number;
   net: number;
-  paymentsReceived: number;
+  paymentsTotal: number;
   paymentsDiscount: number;
   paymentsNet: number;
   paymentsOutstanding: number;
-  PaymentsPending: number;
-  paymentsPaid: number;
   contributionsTotal: number;
   contributionsPaid: number;
   contributionsBalance: number;
   contacts: number;
   travelers: number;
+  confirmedTravelers: number;
   fullyPaidClients: number;
   clientsList: Array<{
     id: string;
@@ -45,6 +48,8 @@ interface Stats {
     balance: number;
     paid: number;
     packageTotal: number;
+    discountAmount: number;
+    additionalAmount: number;
   }>;
   fullyPaidClientsList: Array<{
     id: string;
@@ -64,6 +69,14 @@ interface Stats {
     amount: number;
     date: string | null;
   }>;
+  paymentsList: Array<{
+    id: string;
+    clientName: string;
+    amount: number;
+    discount: number;
+    net: number;
+    date: string;
+  }>;
   contributionsPaidList: Array<{
     id: string;
     name: string;
@@ -77,13 +90,16 @@ interface Stats {
     totalToPay: number;
     totalPaid: number;
     balance: number;
+    discountAmount: number;
+    additionalAmount: number;
   }>;
 }
 
 export default function BusinessSummary() {
-  useEffect(() => { 
-    document.title = "Business Summary — Pearl Hijja Admin"; 
+  useEffect(() => {
+    document.title = "Business Summary — Pearl Hijja Admin";
   }, []);
+
   const [stats, setStats] = useState<Stats>({
     clients: 0,
     bookings: 0,
@@ -91,31 +107,31 @@ export default function BusinessSummary() {
     bookingsConfirmed: 0,
     bookingsCompleted: 0,
     bookingsCancelled: 0,
-    bookingRevenue: 0,
     income: 0,
     expenditure: 0,
     net: 0,
-    paymentsReceived: 0,
+    paymentsTotal: 0,
     paymentsDiscount: 0,
     paymentsNet: 0,
     paymentsOutstanding: 0,
-    PaymentsPending: 0,
-    paymentsPaid: 0,
     contributionsTotal: 0,
     contributionsPaid: 0,
     contributionsBalance: 0,
     contacts: 0,
     travelers: 0,
+    confirmedTravelers: 0,
     fullyPaidClients: 0,
     clientsList: [],
     fullyPaidClientsList: [],
     incomeList: [],
     expenditureList: [],
+    paymentsList: [],
     contributionsPaidList: [],
     packageSummaries: []
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const fetchStats = async () => {
     try {
@@ -130,16 +146,20 @@ export default function BusinessSummary() {
         paymentsRes,
         contributionsRes,
         contactsRes,
-        clientPaymentsRes
+        clientPaymentsRes,
+        packagesRes,
+        clientsData
       ] = await Promise.all([
         supabase.from('clients').select('id', { count: 'exact', head: true }),
         supabase.from('bookings').select('*', { count: 'exact', head: false }),
         supabase.from('income').select('id, description, amount, date, created_at'),
         supabase.from('expenditure').select('id, description, amount, date, created_at'),
-        supabase.from('payments').select('client_id,total,discount,status'),
+        supabase.from('payments').select('*, clients(first_name, second_name)'),
         supabase.from('contributions').select('id, first_name, second_name, contribution, total'),
         supabase.from('contact_messages').select('id', { count: 'exact', head: true }),
-        supabase.from('clients').select('id, first_name, second_name, package_id, discount_amount, additional_amount, balance, paid_amount, packages(name, price)')
+        supabase.from('clients').select('id, first_name, second_name, package_id, discount_amount, additional_amount, balance, paid_amount, packages(name, price)'),
+        supabase.from('packages').select('id, price'),
+        supabase.from('clients').select('id, first_name, second_name')
       ]);
 
       if (clientsRes.error) throw clientsRes.error;
@@ -150,6 +170,7 @@ export default function BusinessSummary() {
       if (contributionsRes.error) throw contributionsRes.error;
       if (contactsRes.error) throw contactsRes.error;
       if (clientPaymentsRes.error) throw clientPaymentsRes.error;
+      if (packagesRes.error) throw packagesRes.error;
 
       const bookings = bookingsRes.data || [];
       const payments = paymentsRes.data || [];
@@ -157,25 +178,62 @@ export default function BusinessSummary() {
       const incomeRows = incomeRes.data || [];
       const expenditureRows = expenditureRes.data || [];
       const clientsWithPackageData = clientPaymentsRes.data || [];
+      const packagesData = packagesRes.data || [];
+      const clientsDataList = clientsData.data || [];
 
-      const bookingRevenue = bookings.reduce((sum: number, b: any) => sum + (b.total_amount || 0), 0);
-      const travelers = bookings.reduce((sum: number, b: any) => sum + (b.travelers_no || 0), 0);
+      // Create client name lookup
+      const clientNameMap: Record<string, string> = {};
+      clientsDataList.forEach((client: any) => {
+        clientNameMap[client.id] = [client.first_name, client.second_name].filter(Boolean).join(' ').trim() || 'Unknown Client';
+      });
+
+      // Create package price lookup
+      const packagePriceMap: Record<number, number> = {};
+      packagesData.forEach((pkg: any) => {
+        packagePriceMap[pkg.id] = Number(pkg.price || 0);
+      });
+
+      // Get confirmed bookings only
+      const confirmedBookings = bookings.filter(
+        (b: any) => (b.booking_status || '').toLowerCase() === 'confirmed' ||
+          (b.booking_status || '').toLowerCase() === 'completed'
+      );
+
+      const totalTravelers = bookings.reduce((sum: number, b: any) => sum + (b.travelers_no || 0), 0);
+      const confirmedTravelers = confirmedBookings.reduce((sum: number, b: any) => sum + (b.travelers_no || 0), 0);
 
       const incomeTotal = incomeRows.reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
       const expenditureTotal = expenditureRows.reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
 
-      const paymentsTotal = payments.reduce((sum: number, p: any) => sum + (p.total || 0), 0);
-      const paymentsDiscountTotal = payments.reduce((sum: number, p: any) => sum + (p.discount || 0), 0);
-      const paymentsNetTotal = payments.reduce((sum: number, p: any) => sum + ((p.total || 0) - (p.discount || 0)), 0);
+      // Payments calculations
+      let paymentsTotal = 0;
+      let paymentsDiscountTotal = 0;
+      let paymentsNetTotal = 0;
+      const paymentsList: any[] = [];
 
-      let paymentsPendingCount = 0;
-      let paymentsPaidCount = 0;
       payments.forEach((p: any) => {
-        const statusText = (p.status && typeof p.status === 'object' && p.status.status) ? p.status.status : String(p.status || 'Pending');
-        if (statusText.toLowerCase() === 'pending') paymentsPendingCount++;
-        if (statusText.toLowerCase() === 'paid') paymentsPaidCount++;
+        const total = p.total || 0;
+        const discount = p.discount || 0;
+        const net = total - discount;
+        paymentsTotal += total;
+        paymentsDiscountTotal += discount;
+        paymentsNetTotal += net;
+
+        const clientName = clientNameMap[p.client_id] || 'Unknown Client';
+        paymentsList.push({
+          id: p.id,
+          clientName: clientName,
+          amount: total,
+          discount: discount,
+          net: net,
+          date: p.created_at || new Date().toISOString(),
+        });
       });
 
+      // Sort payments by date (newest first)
+      paymentsList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      // Contributions calculations
       const contributionsTotalAll = contributions.reduce((sum: number, c: any) => sum + (c.total || 0), 0);
       let contributionsPaidAll = 0;
       const contributionsPaidList = (contributions || []).map((c: any) => {
@@ -192,6 +250,7 @@ export default function BusinessSummary() {
         };
       }).filter((item) => item.paid > 0);
 
+      // Process clients with discount and additional amounts
       const totalClientRows = (clientsWithPackageData as any[]).map((client: any) => {
         const packagePrice = Number(client.packages?.price || 0);
         const discountAmount = Number(client.discount_amount || 0);
@@ -213,6 +272,8 @@ export default function BusinessSummary() {
           package_total: packageTotal,
           paid: totalPaid,
           balance,
+          discount_amount: discountAmount,
+          additional_amount: additionalAmount,
         };
       });
 
@@ -230,6 +291,8 @@ export default function BusinessSummary() {
         balance: Number(row.balance || 0),
         paid: Number(row.paid || 0),
         packageTotal: Number(row.package_total || 0),
+        discountAmount: Number(row.discount_amount || 0),
+        additionalAmount: Number(row.additional_amount || 0),
       }));
       const incomeList = (incomeRows || []).map((row: any) => ({
         id: row.id,
@@ -244,6 +307,19 @@ export default function BusinessSummary() {
         date: row.date || row.created_at || null,
       })).filter((row) => Boolean(row.description));
 
+      // Package summaries with discounts and additional amounts
+      const packageSummaries = summarizePackagePayments(totalClientRows).map((summary: any) => {
+        const packageClients = totalClientRows.filter((row: any) => row.package_name === summary.name);
+        const totalDiscount = packageClients.reduce((sum: number, row: any) => sum + (row.discount_amount || 0), 0);
+        const totalAdditional = packageClients.reduce((sum: number, row: any) => sum + (row.additional_amount || 0), 0);
+
+        return {
+          ...summary,
+          discountAmount: totalDiscount,
+          additionalAmount: totalAdditional,
+        };
+      });
+
       setStats({
         clients: clientsRes.count || 0,
         bookings: bookings.length,
@@ -251,29 +327,29 @@ export default function BusinessSummary() {
         bookingsConfirmed: bookings.filter((b: any) => (b.booking_status || '').toLowerCase() === 'confirmed').length,
         bookingsCompleted: bookings.filter((b: any) => (b.booking_status || '').toLowerCase() === 'completed').length,
         bookingsCancelled: bookings.filter((b: any) => (b.booking_status || '').toLowerCase() === 'cancelled').length,
-        bookingRevenue: bookingRevenue,
         income: incomeTotal,
         expenditure: expenditureTotal,
         net: incomeTotal - expenditureTotal,
-        paymentsReceived: paymentsTotal,
+        paymentsTotal: paymentsTotal,
         paymentsDiscount: paymentsDiscountTotal,
         paymentsNet: paymentsNetTotal,
         paymentsOutstanding: paymentsNetTotal - contributionsPaidAll,
-        PaymentsPending: paymentsPendingCount,
-        paymentsPaid: paymentsPaidCount,
         contributionsTotal: contributionsTotalAll,
         contributionsPaid: contributionsPaidAll,
         contributionsBalance: contributionsTotalAll - contributionsPaidAll,
         contacts: contactsRes.count || 0,
-        travelers,
+        travelers: totalTravelers,
+        confirmedTravelers: confirmedTravelers,
         fullyPaidClients,
         clientsList,
         fullyPaidClientsList,
         incomeList,
         expenditureList,
+        paymentsList,
         contributionsPaidList,
-        packageSummaries: summarizePackagePayments(totalClientRows)
+        packageSummaries
       });
+      setLastUpdated(new Date());
     } catch (err: any) {
       console.error('Error fetching stats:', err);
       setError(err.message || 'Failed to load business summary');
@@ -286,11 +362,110 @@ export default function BusinessSummary() {
     fetchStats();
   }, []);
 
+  // Detail renderers
+  const renderClientDetail = (item: any, index: number) => (
+    <div className="flex justify-between items-center gap-4">
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-sm truncate">{item.name}</p>
+        <div className="flex flex-wrap gap-1 mt-0.5">
+          <Badge variant="outline" className="text-[10px] h-5">
+            {item.packageName}
+          </Badge>
+          {item.discountAmount > 0 && (
+            <Badge variant="destructive" className="text-[10px] h-5">
+              -UGX {item.discountAmount.toLocaleString()}
+            </Badge>
+          )}
+          {item.additionalAmount > 0 && (
+            <Badge variant="default" className="text-[10px] h-5 bg-blue-500">
+              +UGX {item.additionalAmount.toLocaleString()}
+            </Badge>
+          )}
+        </div>
+      </div>
+      <div className="text-right shrink-0">
+        <p className={`text-sm font-semibold ${item.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+          UGX {item.balance.toLocaleString()}
+        </p>
+        <p className="text-[10px] text-muted-foreground">Balance</p>
+      </div>
+    </div>
+  );
+
+  const renderFullyPaidDetail = (item: any) => (
+    <div className="flex justify-between items-center">
+      <div>
+        <span className="font-medium">{item.name}</span>
+        <p className="text-xs text-muted-foreground">{item.packageName}</p>
+      </div>
+      <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+        <CircleCheckBig className="h-3 w-3 mr-1" />
+        Fully Paid
+      </Badge>
+    </div>
+  );
+
+  const renderIncomeDetail = (item: any) => (
+    <div className="flex justify-between items-center gap-4">
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-sm truncate">{item.description}</p>
+        <p className="text-xs text-muted-foreground">
+          {item.date ? new Date(item.date).toLocaleDateString('en-UG', { 
+            year: 'numeric', 
+            month: 'short', 
+            day: 'numeric' 
+          }) : '—'}
+        </p>
+      </div>
+      <span className="font-semibold text-green-600 dark:text-green-400 shrink-0">
+        +UGX {item.amount.toLocaleString()}
+      </span>
+    </div>
+  );
+
+  const renderExpenditureDetail = (item: any) => (
+    <div className="flex justify-between items-center gap-4">
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-sm truncate">{item.description}</p>
+        <p className="text-xs text-muted-foreground">
+          {item.date ? new Date(item.date).toLocaleDateString('en-UG', { 
+            year: 'numeric', 
+            month: 'short', 
+            day: 'numeric' 
+          }) : '—'}
+        </p>
+      </div>
+      <span className="font-semibold text-red-600 dark:text-red-400 shrink-0">
+        -UGX {item.amount.toLocaleString()}
+      </span>
+    </div>
+  );
+
+  const renderContributionDetail = (item: any) => (
+    <div className="flex justify-between items-center gap-4">
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-sm truncate">{item.name}</p>
+        <p className="text-xs text-muted-foreground">
+          Total: UGX {item.total.toLocaleString()}
+        </p>
+      </div>
+      <div className="text-right shrink-0">
+        <p className="text-sm font-medium text-green-600 dark:text-green-400">
+          UGX {item.paid.toLocaleString()}
+        </p>
+        <p className="text-xs text-muted-foreground">Paid</p>
+      </div>
+    </div>
+  );
+
   if (loading) {
     return (
       <AdminLayout title="Business Summary" description="Overall business performance at a glance">
         <div className="flex items-center justify-center h-64">
-          <p className="text-muted-foreground">Loading business summary...</p>
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+            <p className="text-muted-foreground">Loading business summary...</p>
+          </div>
         </div>
       </AdminLayout>
     );
@@ -299,229 +474,297 @@ export default function BusinessSummary() {
   if (error) {
     return (
       <AdminLayout title="Business Summary" description="Overall business performance at a glance">
-        <Card className="border-destructive">
-          <CardContent className="py-6 text-center text-destructive">
+        <Card className="border-red-200 bg-red-50 dark:bg-red-900/10 dark:border-red-800">
+          <CardContent className="py-6 text-center text-red-600 dark:text-red-400">
+            <div className="text-4xl mb-3">⚠️</div>
             {error}
+            <button
+              onClick={fetchStats}
+              className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-red-100 dark:bg-red-900/30 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition"
+            >
+              Try Again
+            </button>
           </CardContent>
         </Card>
       </AdminLayout>
     );
   }
 
-  const StatCard = ({ title, value, icon, hint, valueClass, details, emptyText, detailTitle, renderDetail }: { title: string; value: string | number; icon: any; hint?: string; valueClass?: string; details?: any[]; emptyText?: string; detailTitle?: string; renderDetail?: (item: any) => React.ReactNode }) => {
-    const [open, setOpen] = useState(false);
-
-    return (
-      <div className="relative">
-        <Card className="h-full transition-all duration-200 hover:shadow-lg">
-          <div className="flex h-full flex-col">
-            <CardHeader className="pb-2">
-              <div className="flex items-start justify-between gap-2">
-                <CardTitle className="text-xs sm:text-sm text-muted-foreground flex items-center gap-2">
-                  {icon}
-                  <span className="truncate">{title}</span>
-                </CardTitle>
-                {details && (
-                  <button
-                    type="button"
-                    onClick={() => setOpen(true)}
-                    className="flex items-center gap-1 rounded-full border bg-background px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition hover:text-primary"
-                  >
-                    <Eye className="h-4 w-4" />
-                    <span>View</span>
-                  </button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="flex-1">
-              <p className={`text-lg sm:text-xl md:text-2xl font-semibold truncate ${valueClass || ''}`}>
-                {value}
-              </p>
-              {hint && <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">{hint}</p>}
-            </CardContent>
-          </div>
-        </Card>
-
-        {open && details && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-            <Card className="relative w-full max-w-3xl max-h-[85vh] overflow-hidden rounded-xl shadow-2xl">
-              <button type="button" onClick={() => setOpen(false)} className="absolute right-3 top-3 rounded-full border bg-background p-2 text-muted-foreground transition hover:text-primary">
-                <X className="h-4 w-4" />
-              </button>
-              <CardHeader className="pb-2 pr-12">
-                <CardTitle className="text-sm">{detailTitle || title}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 overflow-y-auto max-h-[70vh]">
-                {details.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">{emptyText || 'No items available.'}</p>
-                ) : (
-                  details.map((item, index) => (
-                    <div key={item.id ?? index} className="rounded-md border bg-muted/30 p-3 text-sm">
-                      {renderDetail ? renderDetail(item) : <span>{String(item.description ?? item.name ?? item)}</span>}
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )}
-      </div>
-    );
-  };
-
   return (
     <AdminLayout title="Business Summary" description="Overall business performance at a glance">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3 md:gap-4 mb-6">
-        <StatCard 
-          title="Clients" 
-          value={stats.clients} 
-          icon={<Users className="h-4 w-4" />} 
+      {/* Header with refresh */}
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
+        <div className="flex items-center gap-3">
+          <div className="h-1 w-12 bg-primary rounded-full" />
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+            Key Metrics
+          </h2>
+        </div>
+        {lastUpdated && (
+          <span className="text-xs text-muted-foreground">
+            Last updated: {lastUpdated.toLocaleTimeString()}
+          </span>
+        )}
+      </div>
+
+      {/* Key Metrics Section */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+        <StatCard
+          title="Total Clients"
+          value={stats.clients}
+          icon={<Users className="h-5 w-5" />}
+          color="primary"
           details={stats.clientsList}
-          detailTitle="Client list"
-          emptyText="No clients available."
-          renderDetail={(item) => (
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-medium">{item.name}</span>
-                <span className="text-xs text-muted-foreground">{item.packageName}</span>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Paid UGX {Number(item.paid || 0).toLocaleString()} • Balance UGX {Number(item.balance || 0).toLocaleString()}
-              </div>
-            </div>
-          )}
+          detailTitle="All Clients"
+          renderDetail={renderClientDetail}
+          viewButtonText="View Details"
         />
-        <StatCard 
-          title="Fully Paid Clients" 
-          value={stats.fullyPaidClients} 
-          icon={<CircleCheckBig className="h-4 w-4" />} 
+
+        <StatCard
+          title="Fully Paid"
+          value={stats.fullyPaidClients}
+          icon={<CircleCheckBig className="h-5 w-5" />}
+          color="green"
+          hint={`${stats.clients > 0 ? Math.round((stats.fullyPaidClients / stats.clients) * 100) : 0}% of clients`}
           details={stats.fullyPaidClientsList}
-          detailTitle="Fully paid clients"
-          emptyText="No fully paid clients yet."
-          renderDetail={(item) => (
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-medium">{item.name}</span>
-              <span className="text-xs text-muted-foreground">{item.packageName}</span>
-            </div>
-          )}
+          detailTitle="Fully Paid Clients"
+          renderDetail={renderFullyPaidDetail}
+          viewButtonText="View Details"
+        />
+
+        <StatCard
+          title="Total Bookings"
+          value={stats.bookings}
+          icon={<Package className="h-5 w-5" />}
+          color="purple"
+          hint={`${stats.bookingsConfirmed} confirmed • ${stats.bookingsPending} pending`}
+        />
+
+        <StatCard
+          title="Travelers"
+          value={stats.travelers}
+          icon={<UserCheck className="h-5 w-5" />}
+          color="indigo"
+          hint={`${stats.confirmedTravelers} confirmed travelers`}
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 sm:gap-3 md:gap-4 mb-6">
-        <StatCard 
-          title="Income" 
-          value={`UGX ${stats.income.toLocaleString()}`} 
-          icon={<ArrowUpCircle className="h-4 w-4" />} 
-          details={stats.incomeList}
-          detailTitle="Income entries"
-          emptyText="No income entries recorded."
-          renderDetail={(item) => (
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-medium">{item.description}</span>
-                <span className="text-xs text-muted-foreground">{item.date ? new Date(item.date).toLocaleDateString() : '—'}</span>
-              </div>
-              <span className="text-xs text-muted-foreground">UGX {Number(item.amount || 0).toLocaleString()}</span>
-            </div>
-          )}
-        />
-        <StatCard 
-          title="Expenditure" 
-          value={`UGX ${stats.expenditure.toLocaleString()}`} 
-          icon={<ArrowDownCircle className="h-4 w-4" />} 
-          details={stats.expenditureList}
-          detailTitle="Expenditure entries"
-          emptyText="No expenditure entries recorded."
-          renderDetail={(item) => (
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-medium">{item.description}</span>
-                <span className="text-xs text-muted-foreground">{item.date ? new Date(item.date).toLocaleDateString() : '—'}</span>
-              </div>
-              <span className="text-xs text-muted-foreground">UGX {Number(item.amount || 0).toLocaleString()}</span>
-            </div>
-          )}
-        />
-        <StatCard 
-          title="Net Profit" 
-          value={`UGX ${stats.net.toLocaleString()}`} 
-          icon={<TrendingUp className="h-4 w-4" />} 
-          valueClass={stats.net < 0 ? 'text-red-600' : 'text-green-600'}
-        />
+      {/* Financial Section */}
+      <div className="mb-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="h-1 w-12 bg-primary rounded-full" />
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+            Financial Overview
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          <StatCard
+            title="Total Income"
+            value={stats.income}
+            icon={<ArrowUpCircle className="h-5 w-5" />}
+            color="green"
+            valuePrefix="UGX "
+            valueClass="text-green-600 dark:text-green-400"
+            details={stats.incomeList}
+            detailTitle="Income Transactions"
+            renderDetail={renderIncomeDetail}
+            viewButtonText="View Details"
+          />
+
+          <StatCard
+            title="Total Expenditure"
+            value={stats.expenditure}
+            icon={<ArrowDownCircle className="h-5 w-5" />}
+            color="rose"
+            valuePrefix="UGX "
+            valueClass="text-red-600 dark:text-red-400"
+            details={stats.expenditureList}
+            detailTitle="Expenditure Transactions"
+            renderDetail={renderExpenditureDetail}
+            viewButtonText="View Details"
+          />
+
+          <StatCard
+            title="Net Profit"
+            value={stats.net}
+            icon={<TrendingUp className="h-5 w-5" />}
+            color={stats.net >= 0 ? "green" : "red"}
+            valuePrefix="UGX "
+            valueClass={stats.net >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}
+            hint={stats.net >= 0 ? "Profit" : "Loss"}
+          />
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 sm:gap-3 md:gap-4 mb-6">
-        <StatCard 
-          title="Contributions Expected" 
-          value={`UGX ${stats.contributionsTotal.toLocaleString()}`} 
-          icon={<Star className="h-4 w-4" />} 
-        />
-        <StatCard 
-          title="Contributions Paid" 
-          value={`UGX ${stats.contributionsPaid.toLocaleString()}`} 
-          icon={<Wallet className="h-4 w-4" />} 
-          details={stats.contributionsPaidList}
-          detailTitle="Paid contributions"
-          emptyText="No paid contributions recorded."
-          renderDetail={(item) => (
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-medium">{item.name}</span>
-                <span className="text-xs text-muted-foreground">Balance UGX {Number(item.balance || 0).toLocaleString()}</span>
-              </div>
-              <span className="text-xs text-muted-foreground">
-                Total UGX {Number(item.total || 0).toLocaleString()} • Paid UGX {Number(item.paid || 0).toLocaleString()}
-              </span>
-            </div>
-          )}
-        />
-        <StatCard 
-          title="Contributions Balance" 
-          value={`UGX ${stats.contributionsBalance.toLocaleString()}`} 
-          icon={<TrendingUp className="h-4 w-4" />} 
-          valueClass={stats.contributionsBalance > 0 ? 'text-red-600' : 'text-green-600'}
-        />
+      {/* Contributions Section */}
+      <div className="mb-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="h-1 w-12 bg-primary rounded-full" />
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+            Contributions
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          <StatCard
+            title="Contributions Total"
+            value={stats.contributionsTotal}
+            icon={<Star className="h-5 w-5" />}
+            color="primary"
+            valuePrefix="UGX "
+          />
+
+          <StatCard
+            title="Contributions Paid"
+            value={stats.contributionsPaid}
+            icon={<Wallet className="h-5 w-5" />}
+            color="green"
+            valuePrefix="UGX "
+            details={stats.contributionsPaidList}
+            detailTitle="Contributions Paid"
+            renderDetail={renderContributionDetail}
+            viewButtonText="View Details"
+          />
+
+          <StatCard
+            title="Contributions Balance"
+            value={stats.contributionsBalance}
+            icon={<Target className="h-5 w-5" />}
+            color={stats.contributionsBalance > 0 ? "red" : "green"}
+            valuePrefix="UGX "
+            valueClass={stats.contributionsBalance > 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}
+          />
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Package Payment Summary</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
+      {/* Package Summary Section */}
+      <div>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="h-1 w-12 bg-primary rounded-full" />
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+            Package Performance
+          </h2>
+        </div>
+
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-4 sm:p-6">
             {stats.packageSummaries.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No package payment data available.</p>
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="text-4xl mb-3">📦</div>
+                <p className="text-muted-foreground">No package data available</p>
+              </div>
             ) : (
-              stats.packageSummaries.map((item) => (
-                <div key={item.name} className="rounded-lg border p-3 sm:p-4">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="font-semibold">{item.name}</p>
-                      <p className="text-sm text-muted-foreground">{item.clients} client{item.clients === 1 ? '' : 's'}</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {stats.packageSummaries.map((item, index) => {
+                  const percentagePaid = item.totalToPay > 0 ? (item.totalPaid / item.totalToPay) * 100 : 0;
+                  const hasDiscount = item.discountAmount > 0;
+                  const hasAdditional = item.additionalAmount > 0;
+
+                  return (
+                    <div
+                      key={index}
+                      className="rounded-xl border p-4 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <p className="font-semibold text-lg flex items-center gap-2">
+                            <ShoppingBag className="h-4 w-4 text-primary" />
+                            {item.name}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {item.clients} client{item.clients !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className={
+                            percentagePaid >= 100
+                              ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                              : percentagePaid >= 70
+                              ? "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                              : "bg-gray-50 text-gray-700 dark:bg-gray-800/30 dark:text-gray-400"
+                          }
+                        >
+                          {percentagePaid >= 100 ? (
+                            <CircleCheckBig className="h-3 w-3 mr-1" />
+                          ) : null}
+                          {percentagePaid >= 100 ? "Complete" : `${Math.round(percentagePaid)}%`}
+                        </Badge>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Total to Pay</span>
+                          <span className="font-medium">UGX {item.totalToPay.toLocaleString()}</span>
+                        </div>
+
+                        {hasDiscount && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Total Discounts</span>
+                            <span className="font-medium text-red-600 dark:text-red-400">
+                              -UGX {item.discountAmount.toLocaleString()}
+                            </span>
+                          </div>
+                        )}
+
+                        {hasAdditional && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Additional Amounts</span>
+                            <span className="font-medium text-blue-600 dark:text-blue-400">
+                              +UGX {item.additionalAmount.toLocaleString()}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Total Paid</span>
+                          <span className="font-medium text-green-600 dark:text-green-400">
+                            UGX {item.totalPaid.toLocaleString()}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between text-sm border-t pt-2">
+                          <span className="text-muted-foreground">Remaining Balance</span>
+                          <span
+                            className={`font-semibold ${
+                              item.balance > 0
+                                ? 'text-red-600 dark:text-red-400'
+                                : 'text-green-600 dark:text-green-400'
+                            }`}
+                          >
+                            UGX {item.balance.toLocaleString()}
+                          </span>
+                        </div>
+
+                        {/* Progress bar */}
+                        <div className="w-full h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden mt-2">
+                          <div
+                            className={
+                              `h-full rounded-full transition-all duration-500 ${
+                                percentagePaid >= 100
+                                  ? "bg-green-500"
+                                  : percentagePaid >= 70
+                                  ? "bg-amber-500"
+                                  : "bg-primary"
+                              }`
+                            }
+                            style={{ width: `${Math.min(percentagePaid, 100)}%` }}
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
-                      <div>
-                        <p className="text-muted-foreground">To Pay</p>
-                        <p className="font-semibold">UGX {item.totalToPay.toLocaleString()}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Paid</p>
-                        <p className="font-semibold">UGX {item.totalPaid.toLocaleString()}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Balance</p>
-                        <p className={`font-semibold ${item.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                          UGX {item.balance.toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))
+                  );
+                })}
+              </div>
             )}
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </AdminLayout>
   );
+}
+
+function cn(...classes: (string | boolean | undefined | null)[]) {
+  return classes.filter(Boolean).join(' ');
 }

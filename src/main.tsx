@@ -25,23 +25,23 @@ if ("serviceWorker" in navigator) {
     });
   } else {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("/sw.js").then((registration) => {
-        // Actively check for a new service worker on every load,
-        // instead of waiting for the browser's own (slow) update cycle.
-        registration.update().catch(() => {});
-      }).catch(() => {
-        // Service worker registration is optional; app still works without it.
-      });
+      // The admin panel needs live auth/data behavior; remove stale PWA workers
+      // so returning to a tab cannot be affected by an old cached app shell.
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((registration) => {
+          registration.unregister().catch(() => {});
+        });
+      }).catch(() => {});
+
+      if ("caches" in window) {
+        caches.keys().then((cacheNames) => {
+          cacheNames
+            .filter((cacheName) => cacheName.startsWith("pearl-pwa-"))
+            .forEach((cacheName) => caches.delete(cacheName).catch(() => {}));
+        }).catch(() => {});
+      }
     });
 
-    // When a new service worker takes control, reload once to pick up
-    // the fresh index.html / assets instead of leaving the old ones cached.
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if (refreshing) return;
-      refreshing = true;
-      window.location.reload();
-    });
   }
 }
 

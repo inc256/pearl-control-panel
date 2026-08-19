@@ -35,7 +35,7 @@ const ROLE_DEFINITIONS: Record<AppRole, { label: string; description: string; ca
     description: "Business Stats, Bookings, Clients, Payments, Contributions, Contribution List",
     canManageRoles: false,
     allowedRoutes: ["/", "/business-summary", "/business-statscan", "/bookings", "/clients", "/payments", "/contributions", "/contributionlist"],
-    defaultRoute: "/business-statscan",
+    defaultRoute: "/business-summary",
   },
   admin: {
     label: "Admin",

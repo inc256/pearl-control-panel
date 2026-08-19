@@ -69,9 +69,13 @@ export default function AdminLayout({ children, title, description }: AdminLayou
   );
 
   return (
-    <div className="min-h-screen w-full bg-background">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-border md:flex">{sidebarContent}</aside>
+    <div className="flex min-h-screen w-full bg-background">
+      {/* Sidebar - Fixed position, doesn't scroll */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-border md:flex md:flex-col">
+        {sidebarContent}
+      </aside>
 
+      {/* Mobile overlay */}
       {open && (
         <div className="fixed inset-0 z-40 md:hidden">
           <div className="absolute inset-0 bg-foreground/40" onClick={() => setOpen(false)} />
@@ -79,9 +83,14 @@ export default function AdminLayout({ children, title, description }: AdminLayou
         </div>
       )}
 
-      <div className="md:pl-64">
+      {/* Main content - with padding to account for fixed sidebar */}
+      <div className="flex min-h-screen w-full flex-1 flex-col md:pl-64">
         <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur md:px-8">
-          <button className="-ml-2 rounded-md p-2 hover:bg-muted md:hidden" onClick={() => setOpen((value) => !value)} aria-label="Menu">
+          <button 
+            className="-ml-2 rounded-md p-2 hover:bg-muted md:hidden" 
+            onClick={() => setOpen((value) => !value)} 
+            aria-label="Menu"
+          >
             {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
           <div className="min-w-0">
@@ -89,7 +98,7 @@ export default function AdminLayout({ children, title, description }: AdminLayou
             {description && <p className="hidden truncate text-xs text-muted-foreground sm:block">{description}</p>}
           </div>
         </header>
-        <main className="mx-auto max-w-[1400px] p-4 md:p-8">{children}</main>
+        <main className="flex-1 p-4 md:p-8">{children}</main>
       </div>
     </div>
   );

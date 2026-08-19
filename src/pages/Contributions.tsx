@@ -3,14 +3,33 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
-import { Eye, Pencil, Save, X, Trash2, Loader2, Wallet, Plus } from "lucide-react";
+import { 
+  Eye, 
+  Pencil, 
+  Save, 
+  X, 
+  Trash2, 
+  Loader2, 
+  Wallet, 
+  Plus,
+  Users,
+  TrendingUp,
+  Clock,
+  UserPlus,
+  Search,
+  Filter,
+  ChevronDown,
+  ChevronUp
+} from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { cn } from "@/lib/utils";
 
 type Contribution = Tables<'contributions'>;
 
@@ -40,6 +59,10 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
   const [selectedMemberPaid, setSelectedMemberPaid] = useState(0);
   const [selectedMemberBalance, setSelectedMemberBalance] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [showFilters, setShowFilters] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   
   // Editing states
   const [editingContributionId, setEditingContributionId] = useState<string | null>(null);
@@ -480,11 +503,47 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
     };
   });
 
+  const getPaymentStatus = (balance: number, paid: number) => {
+    if (balance === 0 && paid > 0) return { label: "Fully Paid", variant: "success" };
+    if (balance > 0 && paid > 0) return { label: "Partial", variant: "warning" };
+    if (paid === 0 && balance > 0) return { label: "Not Started", variant: "destructive" };
+    return { label: "N/A", variant: "secondary" };
+  };
+
+  const toggleRowExpand = (id: string) => {
+    setExpandedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  // Filter members
+  const filteredMemberRows = memberRows.filter(member => {
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch = member.full_name.toLowerCase().includes(searchLower);
+    const status = getPaymentStatus(member.balance, member.paidAmount);
+    const matchesStatus = filterStatus === 'all' || status.label.toLowerCase().replace(' ', '-') === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
+
+  // Stats
+  const totalMembers = members.length;
+  const totalExpected = members.reduce((sum, m) => sum + m.total_amount, 0);
+  const totalPaid = members.reduce((sum, m) => sum + m.paid_amount, 0);
+  const totalBalance = members.reduce((sum, m) => sum + m.balance, 0);
+  const collectionProgress = totalExpected > 0 ? (totalPaid / totalExpected) * 100 : 0;
+
   if (loading) {
     return (
       <ProtectedPage title="Contributions" description="Track member contributions and payment history">
-        <div className="flex items-center justify-center h-64">
-          <p className="text-muted-foreground">Loading contributions...</p>
+        <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
+          <Loader2 className="h-8 w-8 animate-spin" />
+          <p className="mt-4 text-sm">Loading contributions...</p>
         </div>
       </ProtectedPage>
     );
@@ -493,269 +552,540 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
   return (
     <ProtectedPage title={pageTitle} description="Track member contributions and payment history">
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-600">
-          {error}
+        <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 flex items-center justify-between text-sm sm:text-base dark:bg-red-950/20 dark:border-red-800 dark:text-red-400">
+          <span className="flex-1">{error}</span>
           <button 
             onClick={() => setError(null)} 
-            className="ml-2 text-sm underline hover:no-underline"
+            className="text-sm underline hover:no-underline flex items-center gap-1 ml-2 shrink-0"
           >
-            Dismiss
+            <X className="h-4 w-4" /> Dismiss
           </button>
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-2 mb-6">
+      {/* Stats Cards - Responsive */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4 mb-4 sm:mb-6">
         <Card>
-          <CardHeader>
-            <CardTitle>Add new member</CardTitle>
-            <p className="text-sm text-muted-foreground">
+          <CardContent className="p-3 sm:p-6">
+            <div className="flex items-center gap-2 sm:gap-4">
+              <div className="rounded-lg bg-blue-50 p-2 sm:p-3 dark:bg-blue-950/50">
+                <Users className="h-4 w-4 sm:h-6 sm:w-6 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-sm font-medium text-muted-foreground truncate">Members</p>
+                <p className="text-lg sm:text-2xl font-semibold">{totalMembers}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-3 sm:p-6">
+            <div className="flex items-center gap-2 sm:gap-4">
+              <div className="rounded-lg bg-green-50 p-2 sm:p-3 dark:bg-green-950/50">
+                <Wallet className="h-4 w-4 sm:h-6 sm:w-6 text-green-600 dark:text-green-400" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-sm font-medium text-muted-foreground truncate">Expected</p>
+                <p className="text-sm sm:text-2xl font-semibold text-emerald-600 dark:text-emerald-400 truncate">
+                  UGX {totalExpected.toLocaleString()}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-3 sm:p-6">
+            <div className="flex items-center gap-2 sm:gap-4">
+              <div className="rounded-lg bg-emerald-50 p-2 sm:p-3 dark:bg-emerald-950/50">
+                <TrendingUp className="h-4 w-4 sm:h-6 sm:w-6 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-sm font-medium text-muted-foreground truncate">Paid</p>
+                <p className="text-sm sm:text-2xl font-semibold text-emerald-600 dark:text-emerald-400 truncate">
+                  UGX {totalPaid.toLocaleString()}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-3 sm:p-6">
+            <div className="flex items-center gap-2 sm:gap-4">
+              <div className="rounded-lg bg-amber-50 p-2 sm:p-3 dark:bg-amber-950/50">
+                <Clock className="h-4 w-4 sm:h-6 sm:w-6 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-sm font-medium text-muted-foreground truncate">Balance</p>
+                <p className="text-sm sm:text-2xl font-semibold text-amber-600 dark:text-amber-400 truncate">
+                  UGX {totalBalance.toLocaleString()}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Progress Bar */}
+      <Card className="mb-4 sm:mb-6">
+        <CardContent className="p-4 sm:p-6">
+          <div className="space-y-2">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
+              <span className="text-xs sm:text-sm text-muted-foreground">Overall Collection Progress</span>
+              <span className="text-sm sm:text-base font-medium">{collectionProgress.toFixed(1)}%</span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+              <div
+                className="h-full bg-gradient-to-r from-emerald-500 to-green-500 transition-all duration-500"
+                style={{ width: `${Math.min(collectionProgress, 100)}%` }}
+              />
+            </div>
+            <div className="flex flex-col xs:flex-row justify-between gap-1 text-[10px] sm:text-xs text-muted-foreground">
+              <span>UGX {totalPaid.toLocaleString()} collected</span>
+              <span className="hidden xs:inline">•</span>
+              <span>UGX {totalBalance.toLocaleString()} remaining</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Add Forms - Side by Side */}
+      <div className="grid gap-4 sm:gap-6 xl:grid-cols-2 mb-4 sm:mb-6">
+        <Card className="border shadow-sm">
+          <CardHeader className="border-b p-3 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <UserPlus className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+              Add New Member
+            </CardTitle>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
               {members.length} members currently registered
             </p>
           </CardHeader>
           <form onSubmit={handleNewMemberSubmit}>
-            <CardContent className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-1">
-                <Label htmlFor="first_name">First name *</Label>
-                <Input 
-                  id="first_name"
-                  placeholder="Amina" 
-                  value={newMember.first_name}
-                  onChange={(e) => setNewMember({...newMember, first_name: e.target.value})}
-                  required
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="second_name">Last name</Label>
-                <Input 
-                  id="second_name"
-                  placeholder="Nabirye" 
-                  value={newMember.second_name}
-                  onChange={(e) => setNewMember({...newMember, second_name: e.target.value})}
-                />
-              </div>
-              <div className="md:col-span-2 space-y-1">
-                <Label htmlFor="total_amount">Total Amount (UGX)</Label>
-                <Input 
-                  id="total_amount"
-                  type="number" 
-                  placeholder="0"
-                  value={newMember.total_amount}
-                  onChange={(e) => setNewMember({...newMember, total_amount: e.target.value})}
-                  min="0"
-                  step="0.01"
-                  required
-                />
-                <p className="text-xs text-muted-foreground">
-                  This is the total amount the member needs to pay
-                </p>
-              </div>
-              <div className="md:col-span-2 flex items-end">
-                <Button type="submit" className="w-full">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add new member
-                </Button>
+            <CardContent className="p-3 sm:p-6">
+              <div className="grid gap-3 sm:gap-4 md:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    First name <span className="text-red-500">*</span>
+                  </Label>
+                  <Input 
+                    id="first_name"
+                    placeholder="e.g., Amina" 
+                    value={newMember.first_name}
+                    onChange={(e) => setNewMember({...newMember, first_name: e.target.value})}
+                    required
+                    className="h-9 sm:h-10 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Last name
+                  </Label>
+                  <Input 
+                    id="second_name"
+                    placeholder="e.g., Nabirye" 
+                    value={newMember.second_name}
+                    onChange={(e) => setNewMember({...newMember, second_name: e.target.value})}
+                    className="h-9 sm:h-10 text-sm"
+                  />
+                </div>
+                <div className="md:col-span-2 space-y-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Total Amount (UGX) <span className="text-red-500">*</span>
+                  </Label>
+                  <Input 
+                    id="total_amount"
+                    type="number" 
+                    placeholder="0"
+                    value={newMember.total_amount}
+                    onChange={(e) => setNewMember({...newMember, total_amount: e.target.value})}
+                    min="0"
+                    step="0.01"
+                    required
+                    className="h-9 sm:h-10 text-sm"
+                  />
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">
+                    This is the total amount the member needs to pay
+                  </p>
+                </div>
+                <div className="md:col-span-2">
+                  <Button type="submit" className="w-full h-9 sm:h-10 text-sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add new member
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </form>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Add payment to existing member</CardTitle>
-            <p className="text-sm text-muted-foreground">
+        <Card className="border shadow-sm">
+          <CardHeader className="border-b p-3 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Plus className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+              Add Payment
+            </CardTitle>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
               Select a member to add a new payment
             </p>
           </CardHeader>
           <form onSubmit={handleExistingMemberSubmit}>
-            <CardContent className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-1 md:col-span-2">
-                <Label htmlFor="member_select">Choose member *</Label>
-                <Select 
-                  value={existingMember.member_id}
-                  onValueChange={(value) => setExistingMember({...existingMember, member_id: value})}
-                  required
-                >
-                  <SelectTrigger id="member_select">
-                    <SelectValue placeholder="Select member" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {members.length === 0 ? (
-                      <SelectItem value="no-members" disabled>
-                        No members available
-                      </SelectItem>
-                    ) : (
-                      members.map((member) => (
-                        <SelectItem key={member.id} value={member.id}>
-                          {member.full_name} (Balance: UGX {member.balance.toLocaleString()})
+            <CardContent className="p-3 sm:p-6">
+              <div className="grid gap-3 sm:gap-4 md:grid-cols-2">
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Choose member <span className="text-red-500">*</span>
+                  </Label>
+                  <Select 
+                    value={existingMember.member_id}
+                    onValueChange={(value) => setExistingMember({...existingMember, member_id: value})}
+                    required
+                  >
+                    <SelectTrigger className="h-9 sm:h-10 text-sm">
+                      <SelectValue placeholder="Select member" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {members.length === 0 ? (
+                        <SelectItem value="no-members" disabled>
+                          No members available
                         </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="existing_date">Payment date *</Label>
-                <Input 
-                  id="existing_date"
-                  type="date" 
-                  value={existingMember.date}
-                  onChange={(e) => setExistingMember({...existingMember, date: e.target.value})}
-                  required
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="existing_amount">Amount (UGX) *</Label>
-                <Input 
-                  id="existing_amount"
-                  type="number" 
-                  placeholder="0" 
-                  value={existingMember.amount}
-                  onChange={(e) => setExistingMember({...existingMember, amount: e.target.value})}
-                  required
-                  min="1"
-                />
-              </div>
-              <div className="md:col-span-2 flex items-end">
-                <Button 
-                  type="submit" 
-                  className="w-full"
-                  disabled={members.length === 0}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add payment
-                </Button>
+                      ) : (
+                        members.map((member) => (
+                          <SelectItem key={member.id} value={member.id}>
+                            {member.full_name} (Balance: UGX {member.balance.toLocaleString()})
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Payment date <span className="text-red-500">*</span>
+                  </Label>
+                  <Input 
+                    id="existing_date"
+                    type="date" 
+                    value={existingMember.date}
+                    onChange={(e) => setExistingMember({...existingMember, date: e.target.value})}
+                    required
+                    className="h-9 sm:h-10 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Amount (UGX) <span className="text-red-500">*</span>
+                  </Label>
+                  <Input 
+                    id="existing_amount"
+                    type="number" 
+                    placeholder="0" 
+                    value={existingMember.amount}
+                    onChange={(e) => setExistingMember({...existingMember, amount: e.target.value})}
+                    required
+                    min="1"
+                    className="h-9 sm:h-10 text-sm"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <Button 
+                    type="submit" 
+                    className="w-full h-9 sm:h-10 text-sm"
+                    disabled={members.length === 0}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add payment
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </form>
         </Card>
       </div>
 
-      {/* Summary Card */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Wallet className="h-5 w-5" />
-            Summary
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <p className="text-sm text-muted-foreground">Total Members</p>
-              <p className="text-2xl font-bold">{members.length}</p>
-            </div>
-            <div className="bg-green-50 p-4 rounded-lg">
-              <p className="text-sm text-muted-foreground">Total Expected</p>
-              <p className="text-2xl font-bold">
-                UGX {members.reduce((sum, m) => sum + m.total_amount, 0).toLocaleString()}
+      {/* Contribution Ledger */}
+      <Card className="border shadow-sm">
+        <CardHeader className="space-y-2 border-b p-3 sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <Wallet className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+                Contribution Ledger
+              </CardTitle>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+                {filteredMemberRows.length} of {memberRows.length} member{memberRows.length !== 1 ? 's' : ''} with contributions
               </p>
             </div>
-            <div className="bg-purple-50 p-4 rounded-lg">
-              <p className="text-sm text-muted-foreground">Total Paid</p>
-              <p className="text-2xl font-bold">
-                UGX {members.reduce((sum, m) => sum + m.paid_amount, 0).toLocaleString()}
-              </p>
+            <Badge variant="outline" className="w-fit text-xs sm:text-sm">
+              {filteredMemberRows.length} members
+            </Badge>
+          </div>
+
+          {/* Search and Filters - Responsive */}
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-col xs:flex-row gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search members..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-8 h-8 sm:h-9 text-xs sm:text-sm w-full"
+                />
+              </div>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowFilters(!showFilters)}
+                className="h-8 sm:h-9 px-2 sm:px-3 text-xs sm:text-sm flex items-center gap-1 sm:gap-2 shrink-0"
+              >
+                <Filter className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="hidden xs:inline">Filters</span>
+                {showFilters ? <ChevronUp className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> : <ChevronDown className="h-3 w-3 sm:h-3.5 sm:w-3.5" />}
+              </Button>
             </div>
-            <div className="bg-orange-50 p-4 rounded-lg">
-              <p className="text-sm text-muted-foreground">Total Balance</p>
-              <p className="text-2xl font-bold">
-                UGX {members.reduce((sum, m) => sum + m.balance, 0).toLocaleString()}
-              </p>
+            
+            {/* Filters - Collapsible */}
+            <div className={`flex flex-col sm:flex-row gap-2 transition-all duration-200 ${showFilters ? 'block' : 'hidden sm:flex'}`}>
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="h-8 sm:h-9 text-xs sm:text-sm w-full sm:w-[150px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="fully-paid">Fully Paid</SelectItem>
+                  <SelectItem value="partial">Partial</SelectItem>
+                  <SelectItem value="not-started">Not Started</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Contribution ledger</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            {memberRows.length} member{memberRows.length !== 1 ? 's' : ''} with contributions
-          </p>
         </CardHeader>
-        <CardContent>
-          {memberRows.length === 0 ? (
-            <div className="py-8 text-center text-muted-foreground">
-              No contributions found
+        <CardContent className="p-0">
+          {filteredMemberRows.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 sm:py-16 text-muted-foreground">
+              <Users className="h-10 w-10 sm:h-12 sm:w-12 opacity-20" />
+              <p className="mt-3 sm:mt-4 text-sm text-center px-4">
+                {searchTerm || filterStatus !== 'all' 
+                  ? 'No members match your filters' 
+                  : 'No contributions found'}
+              </p>
+              {(searchTerm || filterStatus !== 'all') && (
+                <p className="text-xs sm:text-sm mt-1">Try adjusting your search or filters</p>
+              )}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Member</TableHead>
-                  <TableHead>Total (UGX)</TableHead>
-                  <TableHead>Paid (UGX)</TableHead>
-                  <TableHead>Balance (UGX)</TableHead>
-                  <TableHead>Payments</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {memberRows.map((member) => (
-                  <TableRow key={member.key}>
-                    <TableCell className="font-medium">{member.full_name}</TableCell>
-                    <TableCell>UGX {member.totalAmount.toLocaleString()}</TableCell>
-                    <TableCell>UGX {member.paidAmount.toLocaleString()}</TableCell>
-                    <TableCell className={member.balance > 0 ? 'text-orange-600 font-bold' : 'text-green-600 font-bold'}>
-                      UGX {member.balance.toLocaleString()}
-                    </TableCell>
-                    <TableCell>
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        {member.paymentCount} payment{member.paymentCount !== 1 ? 's' : ''}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleViewPayments(member.key, member.full_name)}
-                        className="inline-flex items-center gap-2"
-                      >
-                        <Eye className="h-4 w-4" />
-                        View
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <>
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-muted/50">
+                    <TableRow>
+                      <TableHead className="font-semibold text-xs">Member</TableHead>
+                      <TableHead className="text-right font-semibold text-xs">Total (UGX)</TableHead>
+                      <TableHead className="text-right font-semibold text-xs">Paid (UGX)</TableHead>
+                      <TableHead className="text-right font-semibold text-xs">Balance (UGX)</TableHead>
+                      <TableHead className="text-right font-semibold text-xs">Progress</TableHead>
+                      <TableHead className="font-semibold text-xs">Payments</TableHead>
+                      <TableHead className="font-semibold text-xs">Status</TableHead>
+                      <TableHead className="text-right font-semibold text-xs">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredMemberRows.map((member) => {
+                      const status = getPaymentStatus(member.balance, member.paidAmount);
+                      const progress = member.totalAmount > 0 ? (member.paidAmount / member.totalAmount) * 100 : 0;
+                      const badgeVariant = status.variant as "success" | "warning" | "destructive" | "secondary";
+
+                      return (
+                        <TableRow key={member.key} className="hover:bg-muted/30 transition-colors">
+                          <TableCell className="font-medium text-sm">{member.full_name}</TableCell>
+                          <TableCell className="text-right font-medium text-sm">
+                            UGX {member.totalAmount.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-right text-emerald-600 dark:text-emerald-400 font-medium text-sm">
+                            UGX {member.paidAmount.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {member.balance > 0 ? (
+                              <span className="font-medium text-amber-600 dark:text-amber-400 text-sm">
+                                UGX {member.balance.toLocaleString()}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-end gap-2">
+                              <span className="text-sm font-medium">{Math.round(progress)}%</span>
+                              <div className="h-1.5 w-16 overflow-hidden rounded-full bg-secondary">
+                                <div
+                                  className="h-full bg-gradient-to-r from-emerald-500 to-green-500 transition-all duration-500"
+                                  style={{ width: `${Math.min(progress, 100)}%` }}
+                                />
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-950/30 dark:text-blue-400">
+                              {member.paymentCount} payment{member.paymentCount !== 1 ? 's' : ''}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={badgeVariant}
+                              className="capitalize text-[10px]"
+                            >
+                              {status.label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleViewPayments(member.key, member.full_name)}
+                              className="inline-flex items-center gap-1 sm:gap-2 h-7 sm:h-8 text-xs sm:text-sm"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              View
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="md:hidden divide-y divide-border">
+                {filteredMemberRows.map((member) => {
+                  const status = getPaymentStatus(member.balance, member.paidAmount);
+                  const progress = member.totalAmount > 0 ? (member.paidAmount / member.totalAmount) * 100 : 0;
+                  const isExpanded = expandedRows.has(member.key);
+                  const badgeVariant = status.variant as "success" | "warning" | "destructive" | "secondary";
+
+                  return (
+                    <div key={member.key} className="p-3 sm:p-4 hover:bg-muted/30 transition-colors">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-sm sm:text-base">{member.full_name}</span>
+                            <Badge
+                              variant={badgeVariant}
+                              className="capitalize text-[10px]"
+                            >
+                              {status.label}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1 flex-wrap text-xs sm:text-sm">
+                            <span className="text-muted-foreground">Balance:</span>
+                            {member.balance > 0 ? (
+                              <span className="font-medium text-amber-600 dark:text-amber-400">
+                                UGX {member.balance.toLocaleString()}
+                              </span>
+                            ) : (
+                              <span className="text-emerald-600 dark:text-emerald-400 font-medium">Fully Paid ✓</span>
+                            )}
+                            <span className="text-muted-foreground">•</span>
+                            <span className="text-muted-foreground">Payments:</span>
+                            <span className="font-medium">{member.paymentCount}</span>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => toggleRowExpand(member.key)}
+                          className="h-7 w-7 sm:h-8 sm:w-8 p-0 shrink-0 ml-2"
+                        >
+                          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </Button>
+                      </div>
+
+                      {/* Progress bar always visible */}
+                      <div className="mt-2 flex items-center gap-3">
+                        <span className="text-xs font-medium">{Math.round(progress)}%</span>
+                        <div className="flex-1 h-1.5 overflow-hidden rounded-full bg-secondary">
+                          <div
+                            className="h-full bg-gradient-to-r from-emerald-500 to-green-500 transition-all duration-500"
+                            style={{ width: `${Math.min(progress, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Expanded details */}
+                      {isExpanded && (
+                        <div className="mt-3 pt-3 border-t border-border space-y-2">
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                              <span className="text-muted-foreground">Total:</span>
+                              <span className="ml-1 font-medium">UGX {member.totalAmount.toLocaleString()}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Paid:</span>
+                              <span className="ml-1 font-medium text-emerald-600 dark:text-emerald-400">
+                                UGX {member.paidAmount.toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleViewPayments(member.key, member.full_name)}
+                            className="w-full h-8 text-xs"
+                          >
+                            <Eye className="h-3.5 w-3.5 mr-2" />
+                            View Payments ({member.paymentCount})
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
 
-      {/* Payment History Modal with Edit/Delete */}
+      {/* Payment History Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] sm:max-h-[80vh] overflow-y-auto mx-4">
           <DialogHeader>
-            <DialogTitle className="text-xl font-semibold">
+            <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl font-semibold">
+              <Wallet className="h-5 w-5 text-primary" />
               Payment History - {selectedMemberName}
             </DialogTitle>
-            <div className="grid grid-cols-3 gap-4 mt-2 text-sm">
-              <div>
-                <span className="text-muted-foreground">Total: </span>
-                <span className="font-medium">UGX {selectedMemberTotal.toLocaleString()}</span>
+            <div className="grid grid-cols-3 gap-3 mt-3 text-sm">
+              <div className="bg-blue-50 dark:bg-blue-950/30 p-3 rounded-lg">
+                <p className="text-xs text-muted-foreground">Total</p>
+                <p className="font-medium text-sm">UGX {selectedMemberTotal.toLocaleString()}</p>
               </div>
-              <div>
-                <span className="text-muted-foreground">Paid: </span>
-                <span className="font-medium text-green-600">UGX {selectedMemberPaid.toLocaleString()}</span>
+              <div className="bg-green-50 dark:bg-green-950/30 p-3 rounded-lg">
+                <p className="text-xs text-muted-foreground">Paid</p>
+                <p className="font-medium text-sm text-emerald-600 dark:text-emerald-400">UGX {selectedMemberPaid.toLocaleString()}</p>
               </div>
-              <div>
-                <span className="text-muted-foreground">Balance: </span>
-                <span className={`font-medium ${selectedMemberBalance > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+              <div className={`p-3 rounded-lg ${selectedMemberBalance > 0 ? 'bg-amber-50 dark:bg-amber-950/30' : 'bg-green-50 dark:bg-green-950/30'}`}>
+                <p className="text-xs text-muted-foreground">Balance</p>
+                <p className={`font-medium text-sm ${selectedMemberBalance > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                   UGX {selectedMemberBalance.toLocaleString()}
-                </span>
+                </p>
               </div>
             </div>
           </DialogHeader>
           
           <div className="mt-4">
             {selectedMemberPayments.length === 0 ? (
-              <div className="py-8 text-center text-muted-foreground">
-                No payment history available
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <Wallet className="h-12 w-12 opacity-20" />
+                <p className="mt-4 text-sm">No payment history available</p>
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="grid grid-cols-4 gap-3 text-sm font-medium text-muted-foreground border-b pb-2">
+                <div className="hidden sm:grid grid-cols-4 gap-3 text-sm font-medium text-muted-foreground border-b pb-2">
                   <div>Date</div>
                   <div>Amount (UGX)</div>
                   <div className="text-right">Running Total</div>
@@ -764,8 +1094,6 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
                 
                 {selectedMemberPayments.map((payment) => {
                   const contributionsArray = payment.contribution as any[] || [];
-                  
-                  // Calculate running total
                   let runningTotal = 0;
                   
                   return (
@@ -774,20 +1102,19 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
                         const isEditing = editingContributionId === payment.id && editingContributionIndex === index;
                         const amount = contrib.amount || 0;
                         const date = contrib.date || '';
-                        
-                        // Calculate running total
                         runningTotal += amount;
                         
                         return (
                           <div 
                             key={`${payment.id}-${index}`}
-                            className={`grid grid-cols-4 gap-3 text-sm py-2 border-b border-gray-100 ${
-                              isEditing ? 'bg-blue-50 rounded-lg p-2 -mx-2' : ''
+                            className={`grid grid-cols-1 sm:grid-cols-4 gap-2 sm:gap-3 text-sm py-2 border-b border-gray-100 dark:border-gray-800 ${
+                              isEditing ? 'bg-blue-50 dark:bg-blue-950/20 rounded-lg p-3 -mx-2' : ''
                             }`}
                           >
                             {isEditing ? (
                               <>
-                                <td>
+                                <div className="sm:col-span-1">
+                                  <Label className="text-xs text-muted-foreground sm:hidden">Date</Label>
                                   <Input 
                                     type="date"
                                     value={editingContribution.date}
@@ -797,8 +1124,9 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
                                     })}
                                     className="h-8 text-xs"
                                   />
-                                </td>
-                                <td>
+                                </div>
+                                <div className="sm:col-span-1">
+                                  <Label className="text-xs text-muted-foreground sm:hidden">Amount</Label>
                                   <Input 
                                     type="number"
                                     step="0.01"
@@ -809,16 +1137,17 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
                                     })}
                                     className="h-8 text-xs"
                                   />
-                                </td>
-                                <td className="text-right font-medium">
+                                </div>
+                                <div className="sm:col-span-1 text-right font-medium">
+                                  <span className="text-xs text-muted-foreground sm:hidden">Running Total: </span>
                                   UGX {runningTotal.toLocaleString()}
-                                </td>
-                                <td className="text-right">
+                                </div>
+                                <div className="sm:col-span-1 text-right">
                                   <Button 
                                     size="sm" 
                                     onClick={() => updateContribution(payment.id, index)}
                                     disabled={updatingId === payment.id}
-                                    className="mr-1"
+                                    className="mr-1 h-8 w-8 p-0"
                                   >
                                     {updatingId === payment.id ? (
                                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -831,14 +1160,16 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
                                     variant="outline"
                                     onClick={cancelEdit}
                                     disabled={updatingId === payment.id}
+                                    className="h-8 w-8 p-0"
                                   >
                                     <X className="h-3 w-3" />
                                   </Button>
-                                </td>
+                                </div>
                               </>
                             ) : (
                               <>
-                                <td>
+                                <div>
+                                  <span className="text-xs text-muted-foreground sm:hidden">Date: </span>
                                   {date ? 
                                     new Date(date).toLocaleDateString('en-GB', {
                                       day: '2-digit',
@@ -847,14 +1178,16 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
                                     }) : 
                                     'No date'
                                   }
-                                </td>
-                                <td className="font-medium">
+                                </div>
+                                <div className="font-medium">
+                                  <span className="text-xs text-muted-foreground sm:hidden">Amount: </span>
                                   UGX {amount.toLocaleString()}
-                                </td>
-                                <td className="text-right font-medium">
+                                </div>
+                                <div className="text-right font-medium">
+                                  <span className="text-xs text-muted-foreground sm:hidden">Running Total: </span>
                                   UGX {runningTotal.toLocaleString()}
-                                </td>
-                                <td className="text-right">
+                                </div>
+                                <div className="text-right">
                                   <Button 
                                     size="sm" 
                                     variant="ghost"
@@ -876,7 +1209,7 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
                                       <Trash2 className="h-3 w-3" />
                                     )}
                                   </Button>
-                                </td>
+                                </div>
                               </>
                             )}
                           </div>
@@ -886,13 +1219,13 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
                   );
                 })}
                 
-                <div className="mt-4 pt-3 border-t-2 border-gray-200">
-                  <div className="grid grid-cols-4 gap-3 text-base font-bold">
-                    <div>Total Paid</div>
-                    <div>
+                <div className="mt-4 pt-3 border-t-2 border-primary/20">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-base font-bold">
+                    <div className="text-primary">Total Paid</div>
+                    <div className="text-right font-mono">
                       UGX {selectedMemberPaid.toLocaleString()}
                     </div>
-                    <div className="text-right text-green-600">
+                    <div className="text-right text-emerald-600 dark:text-emerald-400 font-mono">
                       UGX {selectedMemberPaid.toLocaleString()}
                     </div>
                     <div></div>
