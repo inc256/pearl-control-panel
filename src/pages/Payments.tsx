@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import { notifyDataChanged } from "@/lib/dataCache";
 import { 
   Eye, 
   Plus, 
@@ -216,6 +217,7 @@ export default function Payments() {
       });
       setError(null);
       await fetchData();
+      notifyDataChanged();
 
     } catch (error) {
       console.error('Error saving payment:', error);
@@ -273,6 +275,7 @@ export default function Payments() {
         .eq('id', paymentData.client_id);
 
       await fetchData();
+      notifyDataChanged();
     } catch (error) {
       console.error('Error deleting payment:', error);
       setError('Failed to delete payment. Please try again.');

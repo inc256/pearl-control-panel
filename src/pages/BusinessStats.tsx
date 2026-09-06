@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import * as XLSX from 'xlsx';
 import { useToast } from "@/components/ui/use-toast";
+import { notifyDataChanged } from "@/lib/dataCache";
 
 interface Income {
   id: number;
@@ -179,6 +180,7 @@ export default function BusinessStats() {
 
       setIncomeForm({ date: '', description: '', amount: '' });
       await fetchData();
+      notifyDataChanged();
     } catch (error: any) {
       console.error('Error saving income:', error);
       toast({
@@ -228,6 +230,7 @@ export default function BusinessStats() {
 
       setExpenditureForm({ date: '', description: '', amount: '' });
       await fetchData();
+      notifyDataChanged();
     } catch (error: any) {
       console.error('Error saving expenditure:', error);
       toast({
@@ -294,6 +297,7 @@ export default function BusinessStats() {
       setEditingIncomeId(null);
       setEditingIncome({ description: '', amount: '', date: '' });
       await fetchData();
+      notifyDataChanged();
     } catch (error: any) {
       console.error('Error updating income:', error);
       toast({
@@ -360,6 +364,7 @@ export default function BusinessStats() {
       setEditingExpenditureId(null);
       setEditingExpenditure({ description: '', amount: '', date: '' });
       await fetchData();
+      notifyDataChanged();
     } catch (error: any) {
       console.error('Error updating expenditure:', error);
       toast({
@@ -396,6 +401,7 @@ export default function BusinessStats() {
       });
 
       await fetchData();
+      notifyDataChanged();
     } catch (error: any) {
       console.error('Error deleting income:', error);
       toast({
@@ -432,6 +438,7 @@ export default function BusinessStats() {
       });
 
       await fetchData();
+      notifyDataChanged();
     } catch (error: any) {
       console.error('Error deleting expenditure:', error);
       toast({

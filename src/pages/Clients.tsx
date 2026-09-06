@@ -20,6 +20,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import { notifyDataChanged } from "@/lib/dataCache";
 import { 
   Plus, 
   Trash2, 
@@ -383,6 +384,7 @@ export default function Clients() {
       });
       setError(null);
       await fetchData();
+      notifyDataChanged();
     } catch (error) {
       console.error('Error saving client:', error);
       setError('Failed to save client. Please try again.');
@@ -409,6 +411,7 @@ export default function Clients() {
       setClientToDelete(null);
       setIsDeleteDialogOpen(false);
       await fetchData();
+      notifyDataChanged();
     } catch (error) {
       console.error('Error deleting client:', error);
       setError('Failed to delete client and its payments. Please try again.');

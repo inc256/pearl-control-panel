@@ -30,13 +30,17 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import { notifyDataChanged, readSessionCache, writeSessionCache } from "@/lib/dataCache";
 
 type Contribution = Tables<'contributions'>;
+
+const CONTRIBUTIONS_CACHE_KEY = "pearl:contributions";
 
 interface Member {
   id: string;
   first_name: string;
   second_name: string | null;
+  date_of_birth: string | null;
   total_amount: number;
   paid_amount: number;
   balance: number;
@@ -45,6 +49,39 @@ interface Member {
 
 interface ContributionWithMember extends Contribution {
   member_id?: string;
+}
+
+function buildMembers(contributionsList: ContributionWithMember[]): Member[] {
+  const memberMap = new Map<string, Member>();
+
+  contributionsList.forEach((c) => {
+    const key = `${c.first_name}-${c.second_name || ''}`;
+    const totalAmount = c.total || 0;
+    const contributionsArray = c.contribution as any[] || [];
+    const paidAmount = contributionsArray.reduce((sum, contrib) => sum + (contrib.amount || 0), 0);
+    const fullName = `${c.first_name} ${c.second_name || ''}`.trim();
+
+    if (!memberMap.has(key)) {
+      memberMap.set(key, {
+        id: c.id,
+        first_name: c.first_name,
+        second_name: c.second_name,
+        date_of_birth: c.date_of_birth,
+        total_amount: totalAmount,
+        paid_amount: paidAmount,
+        balance: totalAmount - paidAmount,
+        full_name: fullName
+      });
+      return;
+    }
+
+    const member = memberMap.get(key)!;
+    member.total_amount += totalAmount;
+    member.paid_amount += paidAmount;
+    member.balance = member.total_amount - member.paid_amount;
+  });
+
+  return Array.from(memberMap.values());
 }
 
 export default function Contributions({ pageTitle = "Contributions" }: { pageTitle?: string }) {
@@ -76,10 +113,20 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
   const [editingContributionIndex, setEditingContributionIndex] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [editingMember, setEditingMember] = useState<{
+    ids: string[];
+    first_name: string;
+    second_name: string;
+    date_of_birth: string;
+    total_amount: string;
+  } | null>(null);
+  const [savingMember, setSavingMember] = useState(false);
+  const [deletingMemberKey, setDeletingMemberKey] = useState<string | null>(null);
   
   const [newMember, setNewMember] = useState({
     first_name: '',
     second_name: '',
+    date_of_birth: '',
     total_amount: ''
   });
   
@@ -94,7 +141,17 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
     fetchData();
   }, [pageTitle]);
 
-  const fetchData = async () => {
+  const fetchData = async (forceRefresh = false) => {
+    const cachedContributions = !forceRefresh
+      ? readSessionCache<ContributionWithMember[]>(CONTRIBUTIONS_CACHE_KEY)
+      : null;
+    if (cachedContributions) {
+      setContributions(cachedContributions);
+      setMembers(buildMembers(cachedContributions));
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -113,37 +170,9 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
       }
       
       const contributionsList = contributionsData || [];
+      writeSessionCache(CONTRIBUTIONS_CACHE_KEY, contributionsList);
       setContributions(contributionsList);
-
-      // Calculate member totals, paid amounts, and balances
-      const memberMap = new Map<string, Member>();
-      contributionsList.forEach((c) => {
-        const key = `${c.first_name}-${c.second_name || ''}`;
-        const totalAmount = c.total || 0;
-        const contributionsArray = c.contribution as any[] || [];
-        const paidAmount = contributionsArray.reduce((sum, contrib) => sum + (contrib.amount || 0), 0);
-        const balance = totalAmount - paidAmount;
-        const fullName = `${c.first_name} ${c.second_name || ''}`.trim();
-        
-        if (!memberMap.has(key)) {
-          memberMap.set(key, {
-            id: c.id,
-            first_name: c.first_name,
-            second_name: c.second_name,
-            total_amount: totalAmount,
-            paid_amount: paidAmount,
-            balance: balance,
-            full_name: fullName
-          });
-        } else {
-          const member = memberMap.get(key)!;
-          member.total_amount += totalAmount;
-          member.paid_amount += paidAmount;
-          member.balance = member.total_amount - member.paid_amount;
-        }
-      });
-
-      setMembers(Array.from(memberMap.values()));
+      setMembers(buildMembers(contributionsList));
     } catch (error) {
       console.error('Error fetching data:', error);
       setError('Failed to load contributions. Please try again.');
@@ -169,6 +198,7 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
       const contributionData = {
         first_name: newMember.first_name.trim(),
         second_name: newMember.second_name?.trim() || null,
+        date_of_birth: newMember.date_of_birth || null,
         contribution: [],
         total: totalAmount
       };
@@ -187,9 +217,11 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
       setNewMember({
         first_name: '',
         second_name: '',
+        date_of_birth: '',
         total_amount: ''
       });
-      await fetchData();
+      await fetchData(true);
+      notifyDataChanged();
     } catch (error: any) {
       console.error('Error creating contribution:', error);
       toast({
@@ -287,7 +319,8 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
         date: '',
         amount: ''
       });
-      await fetchData();
+      await fetchData(true);
+      notifyDataChanged();
     } catch (error: any) {
       console.error('Error adding contribution:', error);
       toast({
@@ -357,7 +390,8 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
       setEditingContributionId(null);
       setEditingContributionIndex(null);
       setEditingContribution({ amount: '', date: '' });
-      await fetchData();
+      await fetchData(true);
+      notifyDataChanged();
     } catch (error: any) {
       console.error('Error updating contribution:', error);
       toast({
@@ -405,7 +439,8 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
         description: "Payment deleted successfully",
       });
 
-      await fetchData();
+      await fetchData(true);
+      notifyDataChanged();
     } catch (error: any) {
       console.error('Error deleting contribution:', error);
       toast({
@@ -415,6 +450,74 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
       });
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const startMemberEdit = (member: typeof memberRows[number]) => {
+    setEditingMember({
+      ids: member.memberContribs.map((contribution) => contribution.id),
+      first_name: member.first_name,
+      second_name: member.second_name || '',
+      date_of_birth: member.date_of_birth || '',
+      total_amount: member.totalAmount.toString()
+    });
+  };
+
+  const saveMemberEdit = async () => {
+    if (!editingMember?.first_name.trim()) {
+      toast({ title: 'Error', description: 'First name is required', variant: 'destructive' });
+      return;
+    }
+    if (!editingMember.total_amount || Number(editingMember.total_amount) < 0) {
+      toast({ title: 'Error', description: 'Total amount must be zero or greater', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      setSavingMember(true);
+      const totalAmount = Number(editingMember.total_amount);
+      await Promise.all(editingMember.ids.map((id, index) => supabase
+        .from('contributions')
+        .update({
+          first_name: editingMember.first_name.trim(),
+          second_name: editingMember.second_name.trim() || null,
+          date_of_birth: editingMember.date_of_birth || null,
+          total: index === 0 ? totalAmount : 0
+        })
+        .eq('id', id)
+        .then(({ error }) => {
+          if (error) throw error;
+        })));
+      setEditingMember(null);
+      toast({ title: 'Success', description: 'Contributor details updated successfully' });
+      await fetchData(true);
+      notifyDataChanged();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to update contributor', variant: 'destructive' });
+    } finally {
+      setSavingMember(false);
+    }
+  };
+
+  const deleteMember = async (member: typeof memberRows[number]) => {
+    if (!confirm(`Delete ${member.full_name} and all their payment history?`)) return;
+
+    try {
+      setDeletingMemberKey(member.key);
+      const { error } = await supabase
+        .from('contributions')
+        .delete()
+        .in('id', member.memberContribs.map((contribution) => contribution.id));
+
+      if (error) throw error;
+      setIsModalOpen(false);
+      toast({ title: 'Success', description: 'Contributor deleted successfully' });
+      await fetchData(true);
+      notifyDataChanged();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to delete contributor', variant: 'destructive' });
+    } finally {
+      setDeletingMemberKey(null);
     }
   };
 
@@ -495,6 +598,10 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
     
     return {
       key,
+      memberContribs,
+      first_name: first.first_name,
+      second_name: first.second_name,
+      date_of_birth: first.date_of_birth,
       full_name: fullName,
       totalAmount,
       paidAmount,
@@ -691,6 +798,18 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
                     className="h-9 sm:h-10 text-sm"
                   />
                 </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Date of birth
+                  </Label>
+                  <Input
+                    id="date_of_birth"
+                    type="date"
+                    value={newMember.date_of_birth}
+                    onChange={(e) => setNewMember({...newMember, date_of_birth: e.target.value})}
+                    className="h-9 sm:h-10 text-sm"
+                  />
+                </div>
                 <div className="md:col-span-2 space-y-1.5">
                   <Label className="text-xs font-medium text-muted-foreground">
                     Total Amount (UGX) <span className="text-red-500">*</span>
@@ -884,13 +1003,10 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
                 <Table>
                   <TableHeader className="bg-muted/50">
                     <TableRow>
-                      <TableHead className="font-semibold text-xs">Member</TableHead>
-                      <TableHead className="text-right font-semibold text-xs">Total (UGX)</TableHead>
-                      <TableHead className="text-right font-semibold text-xs">Paid (UGX)</TableHead>
-                      <TableHead className="text-right font-semibold text-xs">Balance (UGX)</TableHead>
-                      <TableHead className="text-right font-semibold text-xs">Progress</TableHead>
+                      <TableHead className="font-semibold text-xs">Contributor</TableHead>
+                      <TableHead className="font-semibold text-xs">Financial summary</TableHead>
+                      <TableHead className="font-semibold text-xs">Progress</TableHead>
                       <TableHead className="font-semibold text-xs">Payments</TableHead>
-                      <TableHead className="font-semibold text-xs">Status</TableHead>
                       <TableHead className="text-right font-semibold text-xs">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -902,26 +1018,39 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
 
                       return (
                         <TableRow key={member.key} className="hover:bg-muted/30 transition-colors">
-                          <TableCell className="font-medium text-sm">{member.full_name}</TableCell>
-                          <TableCell className="text-right font-medium text-sm">
-                            UGX {member.totalAmount.toLocaleString()}
+                          <TableCell className="min-w-[180px]">
+                            <p className="font-medium text-sm">{member.full_name}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              DOB: {member.date_of_birth || 'Not provided'}
+                            </p>
                           </TableCell>
-                          <TableCell className="text-right text-emerald-600 dark:text-emerald-400 font-medium text-sm">
-                            UGX {member.paidAmount.toLocaleString()}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {member.balance > 0 ? (
-                              <span className="font-medium text-amber-600 dark:text-amber-400 text-sm">
-                                UGX {member.balance.toLocaleString()}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
+                          <TableCell className="min-w-[210px]">
+                            <div className="grid grid-cols-3 gap-3 text-xs">
+                              <div>
+                                <p className="text-muted-foreground">Total</p>
+                                <p className="mt-0.5 font-medium">UGX {member.totalAmount.toLocaleString()}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Paid</p>
+                                <p className="mt-0.5 font-medium text-emerald-600 dark:text-emerald-400">UGX {member.paidAmount.toLocaleString()}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Balance</p>
+                                <p className={cn("mt-0.5 font-medium", member.balance > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
+                                  {member.balance > 0 ? `UGX ${member.balance.toLocaleString()}` : '—'}
+                                </p>
+                              </div>
+                            </div>
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center justify-end gap-2">
-                              <span className="text-sm font-medium">{Math.round(progress)}%</span>
-                              <div className="h-1.5 w-16 overflow-hidden rounded-full bg-secondary">
+                            <div className="min-w-[120px] space-y-1.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs font-medium">{Math.round(progress)}%</span>
+                                <Badge variant={badgeVariant} className="capitalize text-[10px]">
+                                  {status.label}
+                                </Badge>
+                              </div>
+                              <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
                                 <div
                                   className="h-full bg-gradient-to-r from-emerald-500 to-green-500 transition-all duration-500"
                                   style={{ width: `${Math.min(progress, 100)}%` }}
@@ -930,19 +1059,11 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
                             </div>
                           </TableCell>
                           <TableCell>
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-950/30 dark:text-blue-400">
+                            <span className="inline-flex whitespace-nowrap items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-950/30 dark:text-blue-400">
                               {member.paymentCount} payment{member.paymentCount !== 1 ? 's' : ''}
                             </span>
                           </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={badgeVariant}
-                              className="capitalize text-[10px]"
-                            >
-                              {status.label}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="whitespace-nowrap text-right">
                             <Button
                               variant="outline"
                               size="sm"
@@ -951,6 +1072,25 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
                             >
                               <Eye className="h-3.5 w-3.5" />
                               View
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => startMemberEdit(member)}
+                              className="h-7 w-7 p-0"
+                              title="Edit contributor"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deleteMember(member)}
+                              disabled={deletingMemberKey === member.key}
+                              className="h-7 w-7 p-0 text-red-500 hover:text-red-700"
+                              title="Delete contributor"
+                            >
+                              {deletingMemberKey === member.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -980,6 +1120,9 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
                             >
                               {status.label}
                             </Badge>
+                          </div>
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            DOB: {member.date_of_birth || 'Not provided'}
                           </div>
                           <div className="flex items-center gap-2 mt-1 flex-wrap text-xs sm:text-sm">
                             <span className="text-muted-foreground">Balance:</span>
@@ -1040,6 +1183,14 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
                             <Eye className="h-3.5 w-3.5 mr-2" />
                             View Payments ({member.paymentCount})
                           </Button>
+                          <div className="flex gap-2">
+                            <Button variant="outline" size="sm" onClick={() => startMemberEdit(member)} className="flex-1 h-8 text-xs">
+                              <Pencil className="h-3.5 w-3.5 mr-2" /> Edit contributor
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => deleteMember(member)} disabled={deletingMemberKey === member.key} className="h-8 px-3 text-xs text-red-500">
+                              {deletingMemberKey === member.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                            </Button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1234,6 +1385,43 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editingMember !== null} onOpenChange={(open) => !open && setEditingMember(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit contributor</DialogTitle>
+          </DialogHeader>
+          {editingMember && (
+            <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-first-name">First name</Label>
+                  <Input id="edit-first-name" value={editingMember.first_name} onChange={(e) => setEditingMember({...editingMember, first_name: e.target.value})} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-second-name">Last name</Label>
+                  <Input id="edit-second-name" value={editingMember.second_name} onChange={(e) => setEditingMember({...editingMember, second_name: e.target.value})} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-date-of-birth">Date of birth</Label>
+                <Input id="edit-date-of-birth" type="date" value={editingMember.date_of_birth} onChange={(e) => setEditingMember({...editingMember, date_of_birth: e.target.value})} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-total-amount">Total amount (UGX)</Label>
+                <Input id="edit-total-amount" type="number" min="0" step="0.01" value={editingMember.total_amount} onChange={(e) => setEditingMember({...editingMember, total_amount: e.target.value})} />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setEditingMember(null)}>Cancel</Button>
+                <Button type="button" onClick={saveMemberEdit} disabled={savingMember}>
+                  {savingMember ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                  Save changes
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </ProtectedPage>

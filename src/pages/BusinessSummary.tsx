@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateClientPackageTotal, resolveClientPaymentTotals, summarizePackagePayments } from "@/lib/clientPricing";
 import StatCard from "@/components/ui/StatCard";
+import { DATA_CHANGED_EVENT, clearSessionCache, readSessionCache, writeSessionCache } from "@/lib/dataCache";
 import { 
   Users, 
   ArrowUpCircle, 
@@ -17,8 +18,48 @@ import {
   Package,
   Target,
   UserCheck,
-  ShoppingBag
+  ShoppingBag,
+  CalendarDays
 } from "lucide-react";
+
+const SUMMARY_CACHE_KEY = "pearl:business-summary";
+
+interface ContributorBirthday {
+  id: string;
+  name: string;
+  dateOfBirth: string;
+  nextBirthday: string;
+  monthsUntil: number;
+  daysUntil: number;
+  countdownLabel: string;
+}
+
+const getBirthdayCountdown = (dateOfBirth: string, today = new Date()) => {
+  const [year, month, day] = dateOfBirth.split('-').map(Number);
+  const currentDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  let nextBirthday = new Date(currentDate.getFullYear(), month - 1, day);
+
+  if (nextBirthday < currentDate) {
+    nextBirthday = new Date(currentDate.getFullYear() + 1, month - 1, day);
+  }
+
+  let monthsUntil = (nextBirthday.getFullYear() - currentDate.getFullYear()) * 12
+    + nextBirthday.getMonth() - currentDate.getMonth();
+  if (nextBirthday.getDate() < currentDate.getDate()) {
+    monthsUntil -= 1;
+  }
+  const monthAnchor = new Date(currentDate.getFullYear(), currentDate.getMonth() + monthsUntil, currentDate.getDate());
+  const daysUntil = Math.max(0, Math.round((nextBirthday.getTime() - monthAnchor.getTime()) / 86400000));
+
+  return {
+    nextBirthday,
+    monthsUntil,
+    daysUntil,
+    countdownLabel: monthsUntil === 0 && daysUntil === 0
+      ? 'Today'
+      : `${monthsUntil} month${monthsUntil === 1 ? '' : 's'}, ${daysUntil} day${daysUntil === 1 ? '' : 's'}`
+  };
+};
 
 interface Stats {
   clients: number;
@@ -37,6 +78,7 @@ interface Stats {
   contributionsTotal: number;
   contributionsPaid: number;
   contributionsBalance: number;
+  contributorBirthdays: ContributorBirthday[];
   contacts: number;
   travelers: number;
   confirmedTravelers: number;
@@ -117,6 +159,7 @@ export default function BusinessSummary() {
     contributionsTotal: 0,
     contributionsPaid: 0,
     contributionsBalance: 0,
+    contributorBirthdays: [],
     contacts: 0,
     travelers: 0,
     confirmedTravelers: 0,
@@ -133,7 +176,15 @@ export default function BusinessSummary() {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const fetchStats = async () => {
+  const fetchStats = async (forceRefresh = false) => {
+    const cachedStats = !forceRefresh ? readSessionCache<Stats>(SUMMARY_CACHE_KEY) : null;
+    if (cachedStats) {
+      setStats(cachedStats);
+      setLastUpdated(new Date());
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -155,7 +206,7 @@ export default function BusinessSummary() {
         supabase.from('income').select('id, description, amount, date, created_at'),
         supabase.from('expenditure').select('id, description, amount, date, created_at'),
         supabase.from('payments').select('*, clients(first_name, second_name)'),
-        supabase.from('contributions').select('id, first_name, second_name, contribution, total'),
+        supabase.from('contributions').select('id, first_name, second_name, date_of_birth, contribution, total'),
         supabase.from('contact_messages').select('id', { count: 'exact', head: true }),
         supabase.from('clients').select('id, first_name, second_name, package_id, discount_amount, additional_amount, balance, paid_amount, packages(name, price)'),
         supabase.from('packages').select('id, price'),
@@ -250,6 +301,29 @@ export default function BusinessSummary() {
         };
       }).filter((item) => item.paid > 0);
 
+      const contributorBirthdays = Array.from(
+        new Map((contributions || [])
+          .filter((c: any) => typeof c.date_of_birth === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(c.date_of_birth))
+          .map((c: any) => {
+            const name = [c.first_name, c.second_name].filter(Boolean).join(' ').trim() || 'Unnamed contributor';
+            const birthday = getBirthdayCountdown(c.date_of_birth);
+            return [name.toLowerCase(), {
+              id: c.id,
+              name,
+              dateOfBirth: c.date_of_birth,
+              nextBirthday: birthday.nextBirthday.toISOString(),
+              monthsUntil: birthday.monthsUntil,
+              daysUntil: birthday.daysUntil,
+              countdownLabel: birthday.countdownLabel,
+            } satisfies ContributorBirthday] as const;
+          }))
+      ).map(([, birthday]) => birthday)
+        .sort((a, b) => {
+          const aDate = new Date(a.nextBirthday).getTime();
+          const bDate = new Date(b.nextBirthday).getTime();
+          return aDate - bDate;
+        });
+
       // Process clients with discount and additional amounts
       const totalClientRows = (clientsWithPackageData as any[]).map((client: any) => {
         const packagePrice = Number(client.packages?.price || 0);
@@ -320,7 +394,7 @@ export default function BusinessSummary() {
         };
       });
 
-      setStats({
+      const nextStats: Stats = {
         clients: clientsRes.count || 0,
         bookings: bookings.length,
         bookingsPending: bookings.filter((b: any) => (b.booking_status || '').toLowerCase() === 'pending').length,
@@ -337,6 +411,7 @@ export default function BusinessSummary() {
         contributionsTotal: contributionsTotalAll,
         contributionsPaid: contributionsPaidAll,
         contributionsBalance: contributionsTotalAll - contributionsPaidAll,
+        contributorBirthdays,
         contacts: contactsRes.count || 0,
         travelers: totalTravelers,
         confirmedTravelers: confirmedTravelers,
@@ -348,7 +423,9 @@ export default function BusinessSummary() {
         paymentsList,
         contributionsPaidList,
         packageSummaries
-      });
+      };
+      writeSessionCache(SUMMARY_CACHE_KEY, nextStats);
+      setStats(nextStats);
       setLastUpdated(new Date());
     } catch (err: any) {
       console.error('Error fetching stats:', err);
@@ -360,6 +437,16 @@ export default function BusinessSummary() {
 
   useEffect(() => {
     fetchStats();
+  }, []);
+
+  useEffect(() => {
+    const handleDataChanged = () => {
+      clearSessionCache(SUMMARY_CACHE_KEY);
+      void fetchStats(true);
+    };
+
+    window.addEventListener(DATA_CHANGED_EVENT, handleDataChanged);
+    return () => window.removeEventListener(DATA_CHANGED_EVENT, handleDataChanged);
   }, []);
 
   // Detail renderers
@@ -458,6 +545,22 @@ export default function BusinessSummary() {
     </div>
   );
 
+  const renderContributorBirthdayDetail = (item: ContributorBirthday) => (
+    <div className="flex justify-between items-center gap-4">
+      <div className="min-w-0">
+        <p className="font-medium text-sm truncate">{item.name}</p>
+        <p className="text-xs text-muted-foreground">
+          DOB: {new Date(`${item.dateOfBirth}T00:00:00`).toLocaleDateString('en-UG', {
+            year: 'numeric', month: 'short', day: 'numeric'
+          })}
+        </p>
+      </div>
+      <Badge variant="outline" className="shrink-0 text-[10px]">
+        {item.countdownLabel}
+      </Badge>
+    </div>
+  );
+
   if (loading) {
     return (
       <AdminLayout title="Business Summary" description="Overall business performance at a glance">
@@ -529,6 +632,18 @@ export default function BusinessSummary() {
           details={stats.fullyPaidClientsList}
           detailTitle="Fully Paid Clients"
           renderDetail={renderFullyPaidDetail}
+          viewButtonText="View"
+        />
+
+        <StatCard
+          title="Member Birthdays"
+          value={stats.contributorBirthdays[0]?.countdownLabel || "No DOBs"}
+          icon={<CalendarDays className="h-5 w-5" />}
+          color="blue"
+          hint={stats.contributorBirthdays[0] ? `Next: ${stats.contributorBirthdays[0].name}` : "Add contributor DOBs to track birthdays"}
+          details={stats.contributorBirthdays}
+          detailTitle="Contributor Birthdays"
+          renderDetail={renderContributorBirthdayDetail}
           viewButtonText="View"
         />
       </div>

@@ -275,6 +275,7 @@ export type Database = {
           contribution: Json
           contribution_date: string
           created_at: string
+          date_of_birth: string | null
           first_name: string
           id: string
           second_name: string | null
@@ -285,6 +286,7 @@ export type Database = {
           contribution?: Json
           contribution_date?: string
           created_at?: string
+          date_of_birth?: string | null
           first_name: string
           id?: string
           second_name?: string | null
@@ -295,6 +297,7 @@ export type Database = {
           contribution?: Json
           contribution_date?: string
           created_at?: string
+          date_of_birth?: string | null
           first_name?: string
           id?: string
           second_name?: string | null

@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { notifyDataChanged } from "@/lib/dataCache";
 import { useAuth } from "@/auth/useAuth";
 import { ROLES, type AppRole } from "@/lib/roles";
 import type { Database } from "@/integrations/supabase/types";
@@ -125,6 +126,7 @@ export default function Roles() {
       }
 
       await fetchData();
+      notifyDataChanged();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to update role";
       toast({
