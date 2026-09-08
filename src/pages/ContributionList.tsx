@@ -4,11 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
-import { Loader2, Users, Wallet, TrendingUp, Clock, Search, Filter, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, Users, Wallet, TrendingUp, Clock, Search, Filter, ChevronDown, ChevronUp, FileSpreadsheet } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
+import { exportToExcel } from "@/lib/exportToExcel";
 
 type Contribution = Tables<'contributions'>;
 
@@ -22,6 +24,7 @@ interface ContributionRow {
 }
 
 export default function ContributionList() {
+  const { toast } = useToast();
   const [rows, setRows] = useState<ContributionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -123,6 +126,23 @@ export default function ContributionList() {
     const matchesStatus = filterStatus === 'all' || status.label.toLowerCase().replace(' ', '-') === filterStatus;
     return matchesSearch && matchesStatus;
   });
+
+  const handleExportContributions = () => {
+    if (filteredRows.length === 0) {
+      toast({ title: "No contributions to export", description: "Adjust the filters or add a contribution first." });
+      return;
+    }
+
+    exportToExcel(filteredRows.map((row) => ({
+      "Member": row.memberName,
+      "Total Amount": row.total,
+      "Paid Amount": row.paid,
+      "Balance": row.balance,
+      "Status": getPaymentStatus(row.balance, row.paid).label,
+      "Last Payment": row.lastPaymentDate || "",
+    })), "contribution-list");
+    toast({ title: "Contributions exported", description: `${filteredRows.length} member${filteredRows.length === 1 ? "" : "s"} exported to Excel.` });
+  };
 
   return (
     <ProtectedPage title="Contributions" description="A read-only view of contribution records">
@@ -226,9 +246,15 @@ export default function ContributionList() {
                   This view is read-only. No add, edit, or delete actions are available here.
                 </p>
               </div>
-              <Badge variant="outline" className="w-fit text-xs sm:text-sm">
-                {filteredRows.length} of {rows.length} members
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="w-fit text-xs sm:text-sm">
+                  {filteredRows.length} of {rows.length} members
+                </Badge>
+                <Button variant="outline" size="sm" onClick={handleExportContributions} className="h-8 text-xs sm:h-9 sm:text-sm" type="button">
+                  <FileSpreadsheet className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  Export Excel
+                </Button>
+              </div>
             </div>
 
             {/* Search and Filters - Responsive */}

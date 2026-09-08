@@ -25,12 +25,14 @@ import {
   UserPlus,
   Search,
   Filter,
+  FileSpreadsheet,
   ChevronDown,
   ChevronUp
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { notifyDataChanged, readSessionCache, writeSessionCache } from "@/lib/dataCache";
+import { exportToExcel } from "@/lib/exportToExcel";
 
 type Contribution = Tables<'contributions'>;
 
@@ -638,6 +640,24 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
     return matchesSearch && matchesStatus;
   });
 
+  const handleExportContributions = () => {
+    if (filteredMemberRows.length === 0) {
+      toast({ title: "No contributions to export", description: "Adjust the filters or add a contribution first." });
+      return;
+    }
+
+    exportToExcel(filteredMemberRows.map((member) => ({
+      "Member": member.full_name,
+      "Date of Birth": member.date_of_birth || "",
+      "Total Amount": member.totalAmount,
+      "Paid Amount": member.paidAmount,
+      "Balance": member.balance,
+      "Payment Count": member.paymentCount,
+      "Status": getPaymentStatus(member.balance, member.paidAmount).label,
+    })), "contributions");
+    toast({ title: "Contributions exported", description: `${filteredMemberRows.length} member${filteredMemberRows.length === 1 ? "" : "s"} exported to Excel.` });
+  };
+
   // Stats
   const totalMembers = members.length;
   const totalExpected = members.reduce((sum, m) => sum + m.total_amount, 0);
@@ -937,9 +957,15 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
                 {filteredMemberRows.length} of {memberRows.length} member{memberRows.length !== 1 ? 's' : ''} with contributions
               </p>
             </div>
-            <Badge variant="outline" className="w-fit text-xs sm:text-sm">
-              {filteredMemberRows.length} members
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="w-fit text-xs sm:text-sm">
+                {filteredMemberRows.length} members
+              </Badge>
+              <Button variant="outline" size="sm" onClick={handleExportContributions} className="h-8 text-xs sm:h-9 sm:text-sm" type="button">
+                <FileSpreadsheet className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                Export Excel
+              </Button>
+            </div>
           </div>
 
           {/* Search and Filters - Responsive */}

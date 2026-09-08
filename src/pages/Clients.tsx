@@ -43,11 +43,14 @@ import {
   AlertCircle,
   UserPlus,
   Filter,
+  FileSpreadsheet,
   ChevronDown,
   ChevronUp,
   Menu
 } from "lucide-react";
 import { calculateClientPackageTotal } from "@/lib/clientPricing";
+import { exportToExcel } from "@/lib/exportToExcel";
+import { useToast } from "@/components/ui/use-toast";
 
 type Client = Tables<'clients'>;
 type Package = Tables<'packages'>;
@@ -70,6 +73,7 @@ interface ClientWithDetails extends Client {
 }
 
 export default function Clients() {
+  const { toast } = useToast();
   const [clients, setClients] = useState<ClientWithDetails[]>([]);
   const [packages, setPackages] = useState<Package[]>([]);
   const [loading, setLoading] = useState(true);
@@ -529,6 +533,31 @@ export default function Clients() {
     return matchesSearch && matchesPackage && matchesStatus;
   });
 
+  const handleExportClients = () => {
+    if (filteredClients.length === 0) {
+      toast({ title: "No clients to export", description: "Adjust the filters or add a client first." });
+      return;
+    }
+
+    exportToExcel(filteredClients.map((client) => {
+      const packageInfo = Array.isArray(client.packages) ? client.packages[0] : client.packages;
+      const balance = client.calculated_balance || 0;
+      return {
+        "First Name": client.first_name,
+        "Second Name": client.second_name || "",
+        "National ID": client.national_id || "",
+        "Phone": client.phone || "",
+        "App ID": client.app_id || "",
+        "Package": packageInfo?.name || "",
+        "Package Total": client.calculated_package_total || 0,
+        "Paid": client.calculated_paid || 0,
+        "Balance": balance,
+        "Status": getBalanceBadge(balance).label,
+      };
+    }), "clients");
+    toast({ title: "Clients exported", description: `${filteredClients.length} client${filteredClients.length === 1 ? "" : "s"} exported to Excel.` });
+  };
+
   // Stats
   const totalClients = clients.length;
   const totalRevenue = clients.reduce((sum, c) => sum + (c.calculated_paid || 0), 0);
@@ -855,6 +884,17 @@ export default function Clients() {
                     className="pl-9 h-9 text-sm w-full sm:w-[180px] lg:w-[200px]"
                   />
                 </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportClients}
+                  className="h-9"
+                  type="button"
+                >
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  Export Excel
+                </Button>
                 
                 <Button
                   variant="outline"
