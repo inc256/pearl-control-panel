@@ -57,6 +57,12 @@ describe("hasRouteAccess", () => {
     expect(hasRouteAccess("secretary", "/roles")).toBe(false);
   });
 
+  it("allows every role to access business summary", () => {
+    for (const role of Object.keys(ROLES)) {
+      expect(canAccess(role, "/business-summary")).toBe(true);
+    }
+  });
+
 
   it("only allows Developer to manage roles", () => {
     expect(ROLES.developer.canManageRoles).toBe(true);

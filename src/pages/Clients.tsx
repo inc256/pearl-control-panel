@@ -48,7 +48,7 @@ import {
   ChevronUp,
   Menu
 } from "lucide-react";
-import { calculateClientPackageTotal } from "@/lib/clientPricing";
+import { calculateClientPackageTotal, resolveClientPaymentTotals } from "@/lib/clientPricing";
 import { exportToExcel } from "@/lib/exportToExcel";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -314,6 +314,12 @@ export default function Clients() {
       const discountAmount = parseFloat(newClient.discount_amount) || 0;
       const additionalAmount = parseFloat(newClient.additional_amount) || 0;
       const packageTotal = calculateClientPackageTotal(packagePrice, discountAmount, additionalAmount);
+      const existingClient = editingId ? clients.find(client => client.id === editingId) : undefined;
+      const paymentTotals = resolveClientPaymentTotals({
+        packageTotal,
+        paidAmount: existingClient?.calculated_paid,
+        fallbackPaid: existingClient?.paid_amount,
+      });
 
       const clientData = {
         first_name: newClient.first_name.trim(),
@@ -324,8 +330,8 @@ export default function Clients() {
         package_id: parseInt(newClient.package_id),
         discount_amount: discountAmount,
         additional_amount: additionalAmount,
-        balance: packageTotal,
-        paid_amount: 0
+        balance: paymentTotals.balance,
+        paid_amount: paymentTotals.totalPaid
       };
 
       const clientDataWithExtra = {

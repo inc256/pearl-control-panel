@@ -11,7 +11,7 @@ import {
 import type { AppRole, NavigationConfig, SidebarItem } from "@/types/roles";
 
 export const SIDEBAR_ITEMS: SidebarItem[] = [
-  { title: "Business Summary", route: "/business-summary", icon: PieChart, requiredRoles: ["developer", "admin", "business", "secretary"] },
+  { title: "Business Summary", route: "/business-summary", icon: PieChart, requiredRoles: ["developer", "admin", "business", "secretary", "media", "tech"] },
   { title: "Business Stats", route: "/business-statscan", icon: BarChart3, requiredRoles: ["developer", "secretary"] },
   { title: "Bookings", route: "/bookings", icon: ClipboardList, requiredRoles: ["developer", "secretary"] },
   { title: "Clients", route: "/clients", icon: Users, requiredRoles: ["developer", "secretary", "admin"] },
@@ -46,9 +46,9 @@ const ROLE_DEFINITIONS: Record<AppRole, { label: string; description: string; ca
   },
   media: {
     label: "Media",
-    description: "Landing Page and Contribution List",
+    description: "Business Summary, Landing Page and Contribution List",
     canManageRoles: false,
-    allowedRoutes: ["/", "/landing", "/contributionlist"],
+    allowedRoutes: ["/", "/business-summary", "/landing", "/contributionlist"],
     defaultRoute: "/landing",
   },
   business: {
@@ -60,9 +60,9 @@ const ROLE_DEFINITIONS: Record<AppRole, { label: string; description: string; ca
   },
   tech: {
     label: "Tech",
-    description: "Contribution List and Landing access",
+    description: "Business Summary, Contribution List and Landing access",
     canManageRoles: false,
-    allowedRoutes: ["/", "/landing", "/contributionlist"],
+    allowedRoutes: ["/", "/business-summary", "/landing", "/contributionlist"],
     defaultRoute: "/landing",
   },
 };

@@ -27,6 +27,19 @@ describe('summarizePackagePayments', () => {
 });
 
 describe('resolveClientPaymentTotals', () => {
+  it('keeps payments when the client changes package', () => {
+    expect(
+      resolveClientPaymentTotals({
+        packageTotal: 1500000,
+        paidAmount: 400000,
+        fallbackPaid: 0,
+      })
+    ).toEqual({
+      totalPaid: 400000,
+      balance: 1100000,
+    });
+  });
+
   it('prefers actual payment totals when stored paid_amount is stale zero', () => {
     expect(
       resolveClientPaymentTotals({
