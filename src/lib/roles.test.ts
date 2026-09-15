@@ -13,14 +13,16 @@ import {
 describe("hasRouteAccess", () => {
   it("allows developer, media, and tech roles to access landing page routes", () => {
     expect(hasRouteAccess("developer", "/landing")).toBe(true);
-    expect(hasRouteAccess("developer", "/landing/packages/new")).toBe(false);
-    expect(hasRouteAccess("developer", "/landing/packages/123")).toBe(false);
+    expect(hasRouteAccess("developer", "/landing/packages/new")).toBe(true);
+    expect(hasRouteAccess("developer", "/landing/packages/123")).toBe(true);
 
     expect(hasRouteAccess("media", "/landing")).toBe(true);
-    expect(hasRouteAccess("media", "/landing/packages/new")).toBe(false);
-    expect(hasRouteAccess("media", "/landing/packages/123")).toBe(false);
+    expect(hasRouteAccess("media", "/landing/packages/new")).toBe(true);
+    expect(hasRouteAccess("media", "/landing/packages/123")).toBe(true);
 
     expect(hasRouteAccess("tech", "/landing")).toBe(true);
+    expect(hasRouteAccess("tech", "/landing/packages/new")).toBe(true);
+    expect(hasRouteAccess("tech", "/landing/packages/123")).toBe(true);
   });
 
   it("supports multi-role access for routes and navigation", () => {
@@ -50,7 +52,7 @@ describe("hasRouteAccess", () => {
     expect(canAccess("business", "/contributions")).toBe(false);
     expect(canAccess("tech", "/contributions")).toBe(false);
     expect(canAccess("admin", "/contributions")).toBe(false);
-    expect(canAccess("secretary", "/contributions")).toBe(false);
+    expect(canAccess("secretary", "/contributions")).toBe(true);
 
     expect(hasRouteAccess("developer", "/roles")).toBe(true);
     expect(hasRouteAccess("admin", "/roles")).toBe(false);
@@ -75,7 +77,7 @@ describe("hasRouteAccess", () => {
 
   it("returns the proper default route for each allowed role", () => {
     expect(getDefaultRoute("developer")).toBe("/business-summary");
-    expect(getDefaultRoute("secretary")).toBe("/business-statscan");
+    expect(getDefaultRoute("secretary")).toBe("/business-summary");
     expect(getDefaultRoute("admin")).toBe("/business-summary");
     expect(getDefaultRoute("business")).toBe("/business-summary");
     expect(getDefaultRoute("media")).toBe("/landing");

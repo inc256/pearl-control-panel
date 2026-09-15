@@ -19,7 +19,7 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
   { title: "Contributions", route: "/contributions", icon: LayoutDashboard, requiredRoles: ["developer", "secretary"] },
   { title: "Contribution List", route: "/contributionlist", icon: ClipboardList, requiredRoles: ["developer", "secretary", "admin", "business", "media", "tech"] },
   { title: "Roles", route: "/roles", icon: UserCog, requiredRoles: ["developer"] },
-  { title: "Landing Page", route: "/landing", icon: FileText, requiredRoles: ["developer", "media", "tech"], end: true },
+  { title: "Landing Page", route: "/landing", icon: FileText, requiredRoles: ["developer", "media", "tech"] },
 ];
 
 const ROLE_DEFINITIONS: Record<AppRole, { label: string; description: string; canManageRoles: boolean; allowedRoutes: string[]; defaultRoute: string }> = {
@@ -27,7 +27,7 @@ const ROLE_DEFINITIONS: Record<AppRole, { label: string; description: string; ca
     label: "Developer",
     description: "Full access with role management",
     canManageRoles: true,
-    allowedRoutes: ["/", "/business-summary", "/business-statscan", "/bookings", "/clients", "/payments", "/contributions", "/contributionlist", "/roles", "/landing"],
+    allowedRoutes: ["/", "/business-summary", "/business-statscan", "/bookings", "/clients", "/payments", "/contributions", "/contributionlist", "/roles", "/landing", "/landing/packages/new", "/landing/packages"],
     defaultRoute: "/business-summary",
   },
   secretary: {
@@ -48,7 +48,7 @@ const ROLE_DEFINITIONS: Record<AppRole, { label: string; description: string; ca
     label: "Media",
     description: "Business Summary, Landing Page and Contribution List",
     canManageRoles: false,
-    allowedRoutes: ["/", "/business-summary", "/landing", "/contributionlist"],
+    allowedRoutes: ["/", "/business-summary", "/landing", "/landing/packages/new", "/landing/packages", "/contributionlist"],
     defaultRoute: "/landing",
   },
   business: {
@@ -62,7 +62,7 @@ const ROLE_DEFINITIONS: Record<AppRole, { label: string; description: string; ca
     label: "Tech",
     description: "Business Summary, Contribution List and Landing access",
     canManageRoles: false,
-    allowedRoutes: ["/", "/business-summary", "/landing", "/contributionlist"],
+    allowedRoutes: ["/", "/business-summary", "/landing", "/landing/packages/new", "/landing/packages", "/contributionlist"],
     defaultRoute: "/landing",
   },
 };
