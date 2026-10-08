@@ -49,7 +49,7 @@ const ROLE_DEFINITIONS: Record<AppRole, { label: string; description: string; ca
     description: "Business Summary, Landing Page and Contribution List",
     canManageRoles: false,
     allowedRoutes: ["/", "/business-summary", "/landing", "/landing/packages/new", "/landing/packages", "/contributionlist"],
-    defaultRoute: "/landing",
+    defaultRoute: "/business-summary",
   },
   business: {
     label: "Business",
@@ -63,7 +63,7 @@ const ROLE_DEFINITIONS: Record<AppRole, { label: string; description: string; ca
     description: "Business Summary, Contribution List and Landing access",
     canManageRoles: false,
     allowedRoutes: ["/", "/business-summary", "/landing", "/landing/packages/new", "/landing/packages", "/contributionlist"],
-    defaultRoute: "/landing",
+    defaultRoute: "/business-summary",
   },
 };
 

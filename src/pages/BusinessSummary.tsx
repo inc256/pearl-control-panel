@@ -2,11 +2,14 @@
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateClientPackageTotal, resolveClientPaymentTotals, summarizePackagePayments } from "@/lib/clientPricing";
 import StatCard from "@/components/ui/StatCard";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { DATA_CHANGED_EVENT, clearSessionCache, readSessionCache, writeSessionCache } from "@/lib/dataCache";
+import { useAuth } from "@/auth/useAuth";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { 
   Users, 
   ArrowUpCircle, 
@@ -18,8 +21,7 @@ import {
   Package,
   Target,
   UserCheck,
-  ShoppingBag,
-  CalendarDays
+  ShoppingBag
 } from "lucide-react";
 
 const SUMMARY_CACHE_KEY = "pearl:business-summary";
@@ -135,14 +137,16 @@ interface Stats {
     discountAmount: number;
     additionalAmount: number;
   }>;
+  packageClientDetails: Array<{
+    packageName: string;
+    clientName: string;
+    paid: number;
+    balance: number;
+  }>;
 }
 
-export default function BusinessSummary() {
-  useEffect(() => {
-    document.title = "Business Summary — Pearl Hijja Admin";
-  }, []);
-
-  const [stats, setStats] = useState<Stats>({
+export const normalizeBusinessSummaryStats = (input: Partial<Stats> = {}): Stats => {
+  const defaults: Stats = {
     clients: 0,
     bookings: 0,
     bookingsPending: 0,
@@ -170,16 +174,58 @@ export default function BusinessSummary() {
     expenditureList: [],
     paymentsList: [],
     contributionsPaidList: [],
-    packageSummaries: []
-  });
+    packageSummaries: [],
+    packageClientDetails: [],
+  };
+
+  return {
+    ...defaults,
+    ...input,
+    contributorBirthdays: Array.isArray(input.contributorBirthdays) ? input.contributorBirthdays : defaults.contributorBirthdays,
+    clientsList: Array.isArray(input.clientsList) ? input.clientsList : defaults.clientsList,
+    fullyPaidClientsList: Array.isArray(input.fullyPaidClientsList) ? input.fullyPaidClientsList : defaults.fullyPaidClientsList,
+    incomeList: Array.isArray(input.incomeList) ? input.incomeList : defaults.incomeList,
+    expenditureList: Array.isArray(input.expenditureList) ? input.expenditureList : defaults.expenditureList,
+    paymentsList: Array.isArray(input.paymentsList) ? input.paymentsList : defaults.paymentsList,
+    contributionsPaidList: Array.isArray(input.contributionsPaidList) ? input.contributionsPaidList : defaults.contributionsPaidList,
+    packageSummaries: Array.isArray(input.packageSummaries) ? input.packageSummaries : defaults.packageSummaries,
+    packageClientDetails: Array.isArray(input.packageClientDetails) ? input.packageClientDetails : defaults.packageClientDetails,
+  };
+};
+
+export const normalizePackageName = (value: string | null | undefined) => {
+  const trimmed = String(value ?? "Unassigned").trim();
+  const cleaned = trimmed
+    .replace(/[_-]+/g, " ")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+
+  return cleaned || "unassigned";
+};
+
+export default function BusinessSummary() {
+  const { roles } = useAuth();
+  const canViewDetailedBusinessSummary = roles.some((role) => ["developer", "secretary", "admin", "business"].includes(role));
+
+  useEffect(() => {
+    document.title = "Business Summary — Pearl Hijja Admin";
+  }, []);
+
+  const [stats, setStats] = useState<Stats>(() => normalizeBusinessSummaryStats());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [selectedPackageName, setSelectedPackageName] = useState<string | null>(null);
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string | null>(null);
+  const [selectedMonthTab, setSelectedMonthTab] = useState<"income" | "expenditure">("income");
 
   const fetchStats = async (forceRefresh = false) => {
     const cachedStats = !forceRefresh ? readSessionCache<Stats>(SUMMARY_CACHE_KEY) : null;
     if (cachedStats) {
-      setStats(cachedStats);
+      const normalizedCachedStats = normalizeBusinessSummaryStats(cachedStats);
+      setStats(normalizedCachedStats);
       setLastUpdated(new Date());
       setLoading(false);
       return;
@@ -383,16 +429,25 @@ export default function BusinessSummary() {
 
       // Package summaries with discounts and additional amounts
       const packageSummaries = summarizePackagePayments(totalClientRows).map((summary: any) => {
-        const packageClients = totalClientRows.filter((row: any) => row.package_name === summary.name);
+        const cleanedName = String(summary.name ?? "Unassigned").trim() || "Unassigned";
+        const packageClients = totalClientRows.filter((row: any) => normalizePackageName(row.package_name) === normalizePackageName(cleanedName));
         const totalDiscount = packageClients.reduce((sum: number, row: any) => sum + (row.discount_amount || 0), 0);
         const totalAdditional = packageClients.reduce((sum: number, row: any) => sum + (row.additional_amount || 0), 0);
 
         return {
           ...summary,
+          name: cleanedName,
           discountAmount: totalDiscount,
           additionalAmount: totalAdditional,
         };
       });
+
+      const packageClientDetails = totalClientRows.map((row: any) => ({
+        packageName: String(row.package_name ?? "Unassigned").trim() || "Unassigned",
+        clientName: row.client_name,
+        paid: Number(row.paid || 0),
+        balance: Number(row.balance || 0),
+      }));
 
       const nextStats: Stats = {
         clients: clientsRes.count || 0,
@@ -422,10 +477,12 @@ export default function BusinessSummary() {
         expenditureList,
         paymentsList,
         contributionsPaidList,
-        packageSummaries
+        packageSummaries,
+        packageClientDetails
       };
-      writeSessionCache(SUMMARY_CACHE_KEY, nextStats);
-      setStats(nextStats);
+      const normalizedNextStats = normalizeBusinessSummaryStats(nextStats);
+      writeSessionCache(SUMMARY_CACHE_KEY, normalizedNextStats);
+      setStats(normalizedNextStats);
       setLastUpdated(new Date());
     } catch (err: any) {
       console.error('Error fetching stats:', err);
@@ -561,6 +618,133 @@ export default function BusinessSummary() {
     </div>
   );
 
+  const formatCompactCurrency = (amount: number) => {
+    const value = Number(amount || 0);
+    if (Math.abs(value) >= 1000000) {
+      const compactValue = (value / 1000000).toFixed(Math.abs(value) >= 10000000 ? 0 : 1).replace(/\.0$/, '');
+      return `UGX ${compactValue}M`;
+    }
+    if (Math.abs(value) >= 1000) {
+      const compactValue = (value / 1000).toFixed(Math.abs(value) >= 100000 ? 0 : 1).replace(/\.0$/, '');
+      return `UGX ${compactValue}K`;
+    }
+    return `UGX ${Math.round(value).toLocaleString()}`;
+  };
+
+  const selectedPackageClients = useMemo(() => {
+    if (!selectedPackageName) return [];
+    const targetPackage = normalizePackageName(selectedPackageName);
+
+    const directMatches = stats.packageClientDetails.filter((item) => normalizePackageName(item.packageName) === targetPackage);
+    const clientListMatches = stats.clientsList
+      .filter((item) => normalizePackageName(item.packageName) === targetPackage)
+      .map((client) => ({
+        packageName: client.packageName,
+        clientName: client.name,
+        paid: Number(client.paid || 0),
+        balance: Number(client.balance || 0),
+      }));
+
+    const merged = [...directMatches, ...clientListMatches];
+    const seen = new Set<string>();
+
+    return merged.filter((client) => {
+      const uniqueKey = `${client.packageName}|${client.clientName}`;
+      if (seen.has(uniqueKey)) return false;
+      seen.add(uniqueKey);
+      return true;
+    });
+  }, [selectedPackageName, stats.clientsList, stats.packageClientDetails]);
+
+  const monthlyFinancialData = useMemo(() => {
+    const now = new Date();
+    const monthMap = new Map<string, { monthKey: string; month: string; income: number; expenditure: number; net: number }>();
+
+    for (let i = 11; i >= 0; i -= 1) {
+      const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${monthDate.getFullYear()}-${monthDate.getMonth()}`;
+      monthMap.set(key, {
+        monthKey: key,
+        month: monthDate.toLocaleDateString('en-US', { month: 'short' }),
+        income: 0,
+        expenditure: 0,
+        net: 0,
+      });
+    }
+
+    stats.incomeList.forEach((entry) => {
+      if (!entry.date) return;
+      const date = new Date(entry.date);
+      if (Number.isNaN(date.getTime())) return;
+      const key = `${date.getFullYear()}-${date.getMonth()}`;
+      const monthEntry = monthMap.get(key);
+      if (monthEntry) {
+        monthEntry.income += Number(entry.amount || 0);
+      }
+    });
+
+    stats.expenditureList.forEach((entry) => {
+      if (!entry.date) return;
+      const date = new Date(entry.date);
+      if (Number.isNaN(date.getTime())) return;
+      const key = `${date.getFullYear()}-${date.getMonth()}`;
+      const monthEntry = monthMap.get(key);
+      if (monthEntry) {
+        monthEntry.expenditure += Number(entry.amount || 0);
+      }
+    });
+
+    return Array.from(monthMap.values())
+      .map((entry) => ({
+        ...entry,
+        net: entry.income - entry.expenditure,
+      }))
+      .filter((entry) => entry.income > 0 || entry.expenditure > 0);
+  }, [stats.incomeList, stats.expenditureList]);
+
+  const selectedMonthEntries = useMemo(() => {
+    if (!selectedMonthKey) return null;
+
+    const [year, month] = selectedMonthKey.split('-').map(Number);
+    const monthDate = new Date(year, month, 1);
+    const monthLabel = monthDate.toLocaleDateString('en-US', {
+      month: 'long',
+      year: 'numeric',
+    });
+
+    const incomeEntries = stats.incomeList
+      .filter((entry) => {
+        if (!entry.date) return false;
+        const date = new Date(entry.date);
+        return !Number.isNaN(date.getTime())
+          && date.getFullYear() === year
+          && date.getMonth() === month;
+      })
+      .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+
+    const expenditureEntries = stats.expenditureList
+      .filter((entry) => {
+        if (!entry.date) return false;
+        const date = new Date(entry.date);
+        return !Number.isNaN(date.getTime())
+          && date.getFullYear() === year
+          && date.getMonth() === month;
+      })
+      .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+
+    return {
+      monthLabel,
+      incomeEntries,
+      expenditureEntries,
+    };
+  }, [selectedMonthKey, stats.incomeList, stats.expenditureList]);
+
+  useEffect(() => {
+    if (selectedMonthKey) {
+      setSelectedMonthTab("income");
+    }
+  }, [selectedMonthKey]);
+
   if (loading) {
     return (
       <AdminLayout title="Business Summary" description="Overall business performance at a glance">
@@ -595,271 +779,627 @@ export default function BusinessSummary() {
 
   return (
     <AdminLayout title="Business Summary" description="Overall business performance at a glance">
-      {/* Header with refresh */}
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
-        <div className="flex items-center gap-3">
-          <div className="h-1 w-12 bg-primary rounded-full" />
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-            Key Metrics
-          </h2>
-        </div>
-        {lastUpdated && (
-          <span className="text-xs text-muted-foreground">
-            Last updated: {lastUpdated.toLocaleTimeString()}
-          </span>
-        )}
-      </div>
-
-      {/* Key Metrics Section */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-6">
-        <StatCard
-          title="Total Clients"
-          value={stats.clients}
-          icon={<Users className="h-5 w-5" />}
-          color="primary"
-          details={stats.clientsList}
-          detailTitle="All Clients"
-          renderDetail={renderClientDetail}
-          viewButtonText="View"
-        />
-
-        <StatCard
-          title="Fully Paid"
-          value={stats.fullyPaidClients}
-          icon={<CircleCheckBig className="h-5 w-5" />}
-          color="green"
-          hint={`${stats.clients > 0 ? Math.round((stats.fullyPaidClients / stats.clients) * 100) : 0}% of clients`}
-          details={stats.fullyPaidClientsList}
-          detailTitle="Fully Paid Clients"
-          renderDetail={renderFullyPaidDetail}
-          viewButtonText="View"
-        />
-
-        <StatCard
-          title="Member Birthdays"
-          value={stats.contributorBirthdays[0]?.countdownLabel || "No DOBs"}
-          icon={<CalendarDays className="h-5 w-5" />}
-          color="blue"
-          hint={stats.contributorBirthdays[0] ? `Next: ${stats.contributorBirthdays[0].name}` : "Add contributor DOBs to track birthdays"}
-          details={stats.contributorBirthdays}
-          detailTitle="Contributor Birthdays"
-          renderDetail={renderContributorBirthdayDetail}
-          viewButtonText="View"
-        />
-      </div>
-
-      {/* Financial Section */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="h-1 w-12 bg-primary rounded-full" />
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-            Financial Overview
-          </h2>
+      <>
+        {/* Header with refresh */}
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
+          <div className="flex items-center gap-3">
+            <div className="h-1 w-12 bg-primary rounded-full" />
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+              Key Metrics
+            </h2>
+          </div>
+          {lastUpdated && (
+            <span className="text-xs text-muted-foreground">
+              Last updated: {lastUpdated.toLocaleTimeString()}
+            </span>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        {/* Key Metrics Section */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-3 sm:gap-4 mb-6">
           <StatCard
-            title="Total Income"
-            value={stats.income}
-            icon={<ArrowUpCircle className="h-5 w-5" />}
-            color="green"
-            valuePrefix="UGX "
-            valueClass="text-green-600 dark:text-green-400"
-            details={stats.incomeList}
-            detailTitle="Income Transactions"
-            renderDetail={renderIncomeDetail}
-            viewButtonText="View"
-          />
-
-          <StatCard
-            title="Total Expenditure"
-            value={stats.expenditure}
-            icon={<ArrowDownCircle className="h-5 w-5" />}
-            color="rose"
-            valuePrefix="UGX "
-            valueClass="text-red-600 dark:text-red-400"
-            details={stats.expenditureList}
-            detailTitle="Expenditure Transactions"
-            renderDetail={renderExpenditureDetail}
-            viewButtonText="View"
-          />
-
-          <StatCard
-            title="Net Profit"
-            value={stats.net}
-            icon={<TrendingUp className="h-5 w-5" />}
-            color={stats.net >= 0 ? "green" : "red"}
-            valuePrefix="UGX "
-            valueClass={stats.net >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}
-            hint={stats.net >= 0 ? "Profit" : "Loss"}
-          />
-        </div>
-      </div>
-
-      {/* Contributions Section */}
-      <div className="mb-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="h-1 w-12 bg-primary rounded-full" />
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-            Contributions
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-          <StatCard
-            title="Contributions Total"
-            value={stats.contributionsTotal}
-            icon={<Star className="h-5 w-5" />}
+            title="Total Clients"
+            value={stats.clients}
+            icon={<Users className="h-5 w-5" />}
             color="primary"
-            valuePrefix="UGX "
-          />
-
-          <StatCard
-            title="Contributions Paid"
-            value={stats.contributionsPaid}
-            icon={<Wallet className="h-5 w-5" />}
-            color="green"
-            valuePrefix="UGX "
-            details={stats.contributionsPaidList}
-            detailTitle="Contributions Paid"
-            renderDetail={renderContributionDetail}
+            details={stats.clientsList}
+            detailTitle="All Clients"
+            renderDetail={renderClientDetail}
             viewButtonText="View"
           />
 
           <StatCard
-            title="Contributions Balance"
-            value={stats.contributionsBalance}
-            icon={<Target className="h-5 w-5" />}
-            color={stats.contributionsBalance > 0 ? "red" : "green"}
-            valuePrefix="UGX "
-            valueClass={stats.contributionsBalance > 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}
+            title="Fully Paid"
+            value={stats.fullyPaidClients}
+            icon={<CircleCheckBig className="h-5 w-5" />}
+            color="primary"
+            hint={`${stats.clients > 0 ? Math.round((stats.fullyPaidClients / stats.clients) * 100) : 0}% of clients`}
+            details={stats.fullyPaidClientsList}
+            detailTitle="Fully Paid Clients"
+            renderDetail={renderFullyPaidDetail}
+            viewButtonText="View"
           />
         </div>
-      </div>
+      </>
 
-      {/* Package Summary Section */}
-      <div>
-        <div className="flex items-center gap-3 mb-4">
-          <div className="h-1 w-12 bg-primary rounded-full" />
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-            Package Performance
-          </h2>
-        </div>
+      <div className="mb-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <Card className="border border-primary/15 bg-gradient-to-br from-[#5C0120]/5 via-white to-[#5C0120]/5 shadow-sm shadow-primary/10 dark:from-[#5C0120]/10 dark:via-background dark:to-[#5C0120]/10">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <span className="h-2.5 w-2.5 rounded-full bg-primary" />
+              Financial activity by month
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <ChartContainer
+              config={{
+                income: { label: "Income", color: "#5C0120" },
+                expenditure: { label: "Expenditure", color: "#d97706" }
+              }}
+              className="w-full min-h-[260px] sm:min-h-[300px]"
+            >
+              <BarChart
+                data={monthlyFinancialData}
+                margin={{ top: 10, right: 8, left: 0, bottom: 0 }}
+                barSize={18}
+                onClick={(state: any) => {
+                  const payload = state?.activePayload?.[0]?.payload ?? state?.payload;
+                  const monthKey = payload?.monthKey;
+                  if (monthKey) setSelectedMonthKey(monthKey);
+                }}
+              >
+                <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                <XAxis dataKey="month" tickLine={false} axisLine={false} />
+                <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => formatCompactCurrency(Number(value))} />
+                <ChartTooltip
+                  cursor={{ fill: "rgba(92, 1, 32, 0.06)" }}
+                  content={<ChartTooltipContent formatter={(value) => [formatCompactCurrency(Number(value)), "Amount"]} />}
+                />
+                <Bar dataKey="income" radius={[6, 6, 0, 0]} fill="#5C0120" />
+                <Bar dataKey="expenditure" radius={[6, 6, 0, 0]} fill="#d97706" />
+              </BarChart>
+            </ChartContainer>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
+              <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#5C0120]" />Income</div>
+              <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#d97706]" />Expenditure</div>
+            </div>
+            {selectedMonthEntries ? (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => {
+                setSelectedMonthKey(null);
+                setSelectedMonthTab("income");
+              }}>
+                <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+                <Card
+                  className="relative z-10 w-full max-w-3xl overflow-hidden border border-primary/10 shadow-2xl"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <CardHeader className="border-b bg-primary/5">
+                    <div className="flex items-center justify-between gap-3">
+                      <CardTitle className="text-base">{selectedMonthEntries.monthLabel}</CardTitle>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedMonthKey(null);
+                          setSelectedMonthTab("income");
+                        }}
+                        className="rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-[11px] font-medium text-primary hover:bg-primary/10"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="max-h-[75vh] overflow-y-auto p-4">
+                    <div className="mb-4 flex rounded-lg bg-muted p-1">
+                      {(["income", "expenditure"] as const).map((tab) => (
+                        <button
+                          key={tab}
+                          type="button"
+                          onClick={() => setSelectedMonthTab(tab)}
+                          className={cn(
+                            "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-colors",
+                            selectedMonthTab === tab
+                              ? "bg-primary text-primary-foreground shadow-sm"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          {tab === "income" ? "Income" : "Expenditure"}
+                        </button>
+                      ))}
+                    </div>
 
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-4 sm:p-6">
-            {stats.packageSummaries.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="text-4xl mb-3">📦</div>
-                <p className="text-muted-foreground">No package data available</p>
+                    {selectedMonthTab === "income" ? (
+                      selectedMonthEntries.incomeEntries.length > 0 ? (
+                        <div className="space-y-2">
+                          {selectedMonthEntries.incomeEntries.map((entry) => (
+                            <div key={entry.id} className="rounded-md border bg-white/70 p-2 text-xs dark:bg-gray-950/30">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-medium text-foreground truncate">{entry.description}</span>
+                                <span className="shrink-0 font-semibold text-green-600">+UGX {Number(entry.amount || 0).toLocaleString()}</span>
+                              </div>
+                              <p className="mt-1 text-[10px] text-muted-foreground">
+                                {entry.date ? new Date(entry.date).toLocaleDateString('en-UG', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  year: 'numeric'
+                                }) : '—'}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">No income entries for this month.</p>
+                      )
+                    ) : selectedMonthEntries.expenditureEntries.length > 0 ? (
+                      <div className="space-y-2">
+                        {selectedMonthEntries.expenditureEntries.map((entry) => (
+                          <div key={entry.id} className="rounded-md border bg-white/70 p-2 text-xs dark:bg-gray-950/30">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-medium text-foreground truncate">{entry.description}</span>
+                              <span className="shrink-0 font-semibold text-red-600">-UGX {Number(entry.amount || 0).toLocaleString()}</span>
+                            </div>
+                            <p className="mt-1 text-[10px] text-muted-foreground">
+                              {entry.date ? new Date(entry.date).toLocaleDateString('en-UG', {
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric'
+                              }) : '—'}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No expenditure entries for this month.</p>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {stats.packageSummaries.map((item, index) => {
-                  const percentagePaid = item.totalToPay > 0 ? (item.totalPaid / item.totalToPay) * 100 : 0;
-                  const hasDiscount = item.discountAmount > 0;
-                  const hasAdditional = item.additionalAmount > 0;
+              <p className="mt-3 text-xs text-muted-foreground">
+                Click a month to see the income and expenditure items recorded in it.
+              </p>
+            )}
+            <p className="mt-3 text-xs text-muted-foreground">
+              {monthlyFinancialData.length > 0 ? `Latest net position: ${formatCompactCurrency(monthlyFinancialData[monthlyFinancialData.length - 1]?.net ?? 0)}.` : "No monthly data recorded yet."}
+            </p>
+          </CardContent>
+        </Card>
 
-                  return (
-                    <div
-                      key={index}
-                      className="rounded-xl border p-4 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5"
-                    >
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <p className="font-semibold text-lg flex items-center gap-2">
-                            <ShoppingBag className="h-4 w-4 text-primary" />
-                            {item.name}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {item.clients} client{item.clients !== 1 ? 's' : ''}
-                          </p>
-                        </div>
-                        <Badge
-                          variant="outline"
-                          className={
-                            percentagePaid >= 100
-                              ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                              : percentagePaid >= 70
-                              ? "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                              : "bg-gray-50 text-gray-700 dark:bg-gray-800/30 dark:text-gray-400"
-                          }
-                        >
-                          {percentagePaid >= 100 ? (
-                            <CircleCheckBig className="h-3 w-3 mr-1" />
-                          ) : null}
-                          {percentagePaid >= 100 ? "Complete" : `${Math.round(percentagePaid)}%`}
-                        </Badge>
-                      </div>
+        <Card className="border border-primary/15 bg-gradient-to-br from-[#5C0120]/5 via-white to-[#5C0120]/5 shadow-sm shadow-primary/10 dark:from-[#5C0120]/10 dark:via-background dark:to-[#5C0120]/10">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <span className="h-2.5 w-2.5 rounded-full bg-primary/80" />
+              Bookings pipeline
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <ChartContainer
+              config={{
+                pending: { label: "Pending", color: "#d97706" },
+                confirmed: { label: "Confirmed", color: "#5C0120" },
+                completed: { label: "Completed", color: "#16a34a" },
+                cancelled: { label: "Cancelled", color: "#dc2626" }
+              }}
+              className="w-full min-h-[260px] sm:min-h-[300px]"
+            >
+              <BarChart
+                data={[
+                  { name: "Bookings", pending: stats.bookingsPending, confirmed: stats.bookingsConfirmed, completed: stats.bookingsCompleted, cancelled: stats.bookingsCancelled }
+                ]}
+                margin={{ top: 10, right: 8, left: 0, bottom: 0 }}
+                barSize={18}
+              >
+                <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                <XAxis dataKey="name" tickLine={false} axisLine={false} />
+                <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+                <ChartTooltip
+                  cursor={{ fill: "rgba(92, 1, 32, 0.06)" }}
+                  content={<ChartTooltipContent formatter={(value) => [Number(value).toLocaleString(), "Bookings"]} />}
+                />
+                <Bar dataKey="pending" radius={[6, 6, 0, 0]} fill="#d97706" />
+                <Bar dataKey="confirmed" radius={[6, 6, 0, 0]} fill="#5C0120" />
+                <Bar dataKey="completed" radius={[6, 6, 0, 0]} fill="#16a34a" />
+                <Bar dataKey="cancelled" radius={[6, 6, 0, 0]} fill="#dc2626" />
+              </BarChart>
+            </ChartContainer>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
+              <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#d97706]" />Pending</div>
+              <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#5C0120]" />Confirmed</div>
+              <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#16a34a]" />Completed</div>
+              <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#dc2626]" />Cancelled</div>
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              {stats.bookings > 0 ? `${Math.round((stats.bookingsConfirmed / stats.bookings) * 100)}% of bookings are confirmed and progressing.` : "No bookings recorded yet."}
+            </p>
+          </CardContent>
+        </Card>
 
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Total to Pay</span>
-                          <span className="font-medium">UGX {item.totalToPay.toLocaleString()}</span>
-                        </div>
+        <Card className="border border-primary/15 bg-gradient-to-br from-[#5C0120]/5 via-white to-[#5C0120]/5 shadow-sm shadow-primary/10 dark:from-[#5C0120]/10 dark:via-background dark:to-[#5C0120]/10">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <span className="h-2.5 w-2.5 rounded-full bg-primary/90" />
+              Package performance
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {stats.packageSummaries.length > 0 ? (
+              <>
+                <ChartContainer
+                  config={{
+                    totalToPay: { label: "Target", color: "#5C0120" },
+                    totalPaid: { label: "Collected", color: "#b45309" }
+                  }}
+                  className="w-full min-h-[260px] sm:min-h-[300px]"
+                >
+                  <BarChart
+                    data={stats.packageSummaries.slice(0, 5)}
+                    margin={{ top: 10, right: 12, left: 0, bottom: 20 }}
+                    barSize={18}
+                  >
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                    <XAxis dataKey="name" tickLine={false} axisLine={false} angle={-20} textAnchor="end" height={48} />
+                    <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => formatCompactCurrency(Number(value))} />
+                    <ChartTooltip
+                      cursor={{ fill: "rgba(92, 1, 32, 0.06)" }}
+                      content={<ChartTooltipContent formatter={(value) => [formatCompactCurrency(Number(value)), "Amount"]} />}
+                    />
+                    <Bar dataKey="totalToPay" radius={[6, 6, 0, 0]} fill="#5C0120" />
+                    <Bar dataKey="totalPaid" radius={[6, 6, 0, 0]} fill="#b45309" />
+                  </BarChart>
+                </ChartContainer>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
+                  <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#5C0120]" />Target</div>
+                  <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#b45309]" />Collected</div>
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  {stats.packageSummaries[0] ? `${stats.packageSummaries[0].name} leads current package performance.` : "Package data is being updated."}
+                </p>
+              </>
+            ) : (
+              <div className="flex h-[220px] items-center justify-center text-sm text-muted-foreground">
+                No package performance data available yet.
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-                        {hasDiscount && (
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Total Discounts</span>
-                            <span className="font-medium text-red-600 dark:text-red-400">
-                              -UGX {item.discountAmount.toLocaleString()}
-                            </span>
-                          </div>
-                        )}
-
-                        {hasAdditional && (
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Additional Amounts</span>
-                            <span className="font-medium text-blue-600 dark:text-blue-400">
-                              +UGX {item.additionalAmount.toLocaleString()}
-                            </span>
-                          </div>
-                        )}
-
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Total Paid</span>
-                          <span className="font-medium text-green-600 dark:text-green-400">
-                            UGX {item.totalPaid.toLocaleString()}
-                          </span>
-                        </div>
-
-                        <div className="flex justify-between text-sm border-t pt-2">
-                          <span className="text-muted-foreground">Remaining Balance</span>
-                          <span
-                            className={`font-semibold ${
-                              item.balance > 0
-                                ? 'text-red-600 dark:text-red-400'
-                                : 'text-green-600 dark:text-green-400'
-                            }`}
-                          >
-                            UGX {item.balance.toLocaleString()}
-                          </span>
-                        </div>
-
-                        {/* Progress bar */}
-                        <div className="w-full h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden mt-2">
-                          <div
-                            className={
-                              `h-full rounded-full transition-all duration-500 ${
-                                percentagePaid >= 100
-                                  ? "bg-green-500"
-                                  : percentagePaid >= 70
-                                  ? "bg-amber-500"
-                                  : "bg-primary"
-                              }`
-                            }
-                            style={{ width: `${Math.min(percentagePaid, 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+        <Card className="border border-primary/15 bg-gradient-to-br from-[#5C0120]/5 via-white to-[#5C0120]/5 shadow-sm shadow-primary/10 dark:from-[#5C0120]/10 dark:via-background dark:to-[#5C0120]/10">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <span className="h-2.5 w-2.5 rounded-full bg-primary/70" />
+              Clients by package
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {stats.packageSummaries.length > 0 ? (
+              <>
+                <ChartContainer
+                  config={{
+                    clients: { label: "Clients", color: "#5C0120" }
+                  }}
+                  className="w-full min-h-[260px] sm:min-h-[300px]"
+                >
+                  <BarChart
+                    data={stats.packageSummaries.filter((item) => item.clients > 0).slice(0, 6)}
+                    margin={{ top: 10, right: 12, left: 0, bottom: 20 }}
+                    barSize={22}
+                    onClick={(state: any) => {
+                      const payload = state?.activePayload?.[0]?.payload ?? state?.payload;
+                      const packageName = payload?.name ?? payload?.packageName ?? payload?.label;
+                      if (packageName) setSelectedPackageName(String(packageName));
+                    }}
+                  >
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                    <XAxis dataKey="name" tickLine={false} axisLine={false} angle={-20} textAnchor="end" height={48} />
+                    <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+                    <ChartTooltip
+                      cursor={{ fill: "rgba(92, 1, 32, 0.06)" }}
+                      content={<ChartTooltipContent formatter={(value) => [Number(value).toLocaleString(), "Clients"]} />}
+                    />
+                    <Bar dataKey="clients" radius={[6, 6, 0, 0]} fill="#5C0120" />
+                  </BarChart>
+                </ChartContainer>
+                <div className="mt-3 flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <span className="h-2.5 w-2.5 rounded-sm bg-[#5C0120]" />Clients per package
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  {stats.packageSummaries.reduce((sum, item) => sum + item.clients, 0)} clients are distributed across the active package mix.
+                </p>
+              </>
+            ) : (
+              <div className="flex h-[220px] items-center justify-center text-sm text-muted-foreground">
+                No client-package distribution data available yet.
               </div>
             )}
           </CardContent>
         </Card>
       </div>
+
+      {canViewDetailedBusinessSummary && (
+        <>
+          {/* Financial Section */}
+          <div className="mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-1 w-12 bg-primary rounded-full" />
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                Financial Overview
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+              <StatCard
+                title="Total Income"
+                value={stats.income}
+                icon={<ArrowUpCircle className="h-5 w-5" />}
+                color="green"
+                valuePrefix="UGX "
+                valueClass="text-green-600 dark:text-green-400"
+                details={stats.incomeList}
+                detailTitle="Income Transactions"
+                renderDetail={renderIncomeDetail}
+                viewButtonText="View"
+                sortable
+                itemsPerPage={100}
+                exportRows={stats.incomeList.map((item) => ({
+                  Description: item.description,
+                  Date: item.date ? new Date(item.date).toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric' }) : '—',
+                  Amount: Number(item.amount || 0),
+                }))}
+                exportFilename="financial-overview-income"
+                exportSheetName="Income"
+              />
+
+              <StatCard
+                title="Total Expenditure"
+                value={stats.expenditure}
+                icon={<ArrowDownCircle className="h-5 w-5" />}
+                color="rose"
+                valuePrefix="UGX "
+                valueClass="text-red-600 dark:text-red-400"
+                details={stats.expenditureList}
+                detailTitle="Expenditure Transactions"
+                renderDetail={renderExpenditureDetail}
+                viewButtonText="View"
+                sortable
+                itemsPerPage={100}
+                exportRows={stats.expenditureList.map((item) => ({
+                  Description: item.description,
+                  Date: item.date ? new Date(item.date).toLocaleDateString('en-UG', { day: 'numeric', month: 'short', year: 'numeric' }) : '—',
+                  Amount: Number(item.amount || 0),
+                }))}
+                exportFilename="financial-overview-expenditure"
+                exportSheetName="Expenditure"
+              />
+
+              <StatCard
+                title="Net"
+                value={stats.net}
+                icon={<TrendingUp className="h-5 w-5" />}
+                color={stats.net >= 0 ? "green" : "rose"}
+                valuePrefix="UGX "
+                valueClass={stats.net >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}
+                details={[]}
+                detailTitle="Net Summary"
+                viewButtonText="View"
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      {canViewDetailedBusinessSummary && (
+        <>
+          {/* Contributions Section */}
+          <div className="mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-1 w-12 bg-primary rounded-full" />
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                Contributions
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+              <StatCard
+                title="Contributions Total"
+                value={stats.contributionsTotal}
+                icon={<Star className="h-5 w-5" />}
+                color="primary"
+                valuePrefix="UGX "
+              />
+
+              <StatCard
+                title="Contributions Paid"
+                value={stats.contributionsPaid}
+                icon={<Wallet className="h-5 w-5" />}
+                color="green"
+                valuePrefix="UGX "
+                details={stats.contributionsPaidList}
+                detailTitle="Contributions Paid"
+                renderDetail={renderContributionDetail}
+                viewButtonText="View"
+              />
+
+              <StatCard
+                title="Contributions Balance"
+                value={stats.contributionsBalance}
+                icon={<Target className="h-5 w-5" />}
+                color={stats.contributionsBalance > 0 ? "red" : "green"}
+                valuePrefix="UGX "
+                valueClass={stats.contributionsBalance > 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      {canViewDetailedBusinessSummary && (
+        <>
+          {/* Package Summary Section */}
+          <div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-1 w-12 bg-primary rounded-full" />
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                Package Performance
+              </h2>
+            </div>
+
+            <Card className="border border-primary/10 bg-gradient-to-br from-[#5C0120]/5 via-white to-[#f7f0f3] shadow-sm shadow-primary/10 dark:from-[#5C0120]/10 dark:via-background dark:to-[#5C0120]/5">
+              <CardContent className="p-4 sm:p-6">
+                {stats.packageSummaries.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <div className="text-4xl mb-3">📦</div>
+                    <p className="text-muted-foreground">No package data available</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {stats.packageSummaries.map((item, index) => {
+                      const percentagePaid = item.totalToPay > 0 ? (item.totalPaid / item.totalToPay) * 100 : 0;
+                      const balanceDue = Math.max(item.totalToPay - item.totalPaid, 0);
+                      const hasDiscount = item.discountAmount > 0;
+                      const hasAdditional = item.additionalAmount > 0;
+
+                      return (
+                        <div
+                          key={index}
+                          className="group w-full rounded-2xl border border-primary/10 bg-white p-4 text-left shadow-[0_10px_30px_-18px_rgba(92,1,32,0.4)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_38px_-20px_rgba(92,1,32,0.45)] dark:bg-[#111111]"
+                        >
+                          <div className="mb-4 flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="mb-2 flex items-center gap-2 text-primary">
+                                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                                  <ShoppingBag className="h-4 w-4" />
+                                </div>
+                                <p className="truncate text-base font-semibold text-foreground">{item.name}</p>
+                              </div>
+                              <p className="text-sm text-muted-foreground">
+                                {item.clients} client{item.clients !== 1 ? 's' : ''}
+                              </p>
+                            </div>
+
+                            <Badge
+                              variant="outline"
+                              className={
+                                percentagePaid >= 100
+                                  ? "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400"
+                                  : percentagePaid >= 70
+                                  ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400"
+                                  : "border-primary/20 bg-primary/5 text-primary"
+                              }
+                            >
+                              {percentagePaid >= 100 ? (
+                                <CircleCheckBig className="mr-1 h-3 w-3" />
+                              ) : null}
+                              {percentagePaid >= 100 ? "Complete" : `${Math.round(percentagePaid)}%`}
+                            </Badge>
+                          </div>
+
+                          <div className="mb-4 rounded-xl bg-muted/40 p-3">
+                            <div className="flex items-center justify-between text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                              <span>Total package value</span>
+                              <span>Target</span>
+                            </div>
+                            <p className="mt-2 text-xl font-bold text-foreground">UGX {item.totalToPay.toLocaleString()}</p>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div className="rounded-lg border border-border bg-muted/30 p-2.5">
+                              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Paid</p>
+                              <p className="mt-1 font-semibold text-green-600 dark:text-green-400">UGX {item.totalPaid.toLocaleString()}</p>
+                            </div>
+                            <div className="rounded-lg border border-border bg-muted/30 p-2.5">
+                              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Balance</p>
+                              <p className="mt-1 font-semibold text-red-600 dark:text-red-400">UGX {balanceDue.toLocaleString()}</p>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 space-y-2">
+                            {hasDiscount && (
+                              <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">Discounts</span>
+                                <span className="font-medium text-red-600 dark:text-red-400">
+                                  -UGX {item.discountAmount.toLocaleString()}
+                                </span>
+                              </div>
+                            )}
+
+                            {hasAdditional && (
+                              <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">Extras</span>
+                                <span className="font-medium text-blue-600 dark:text-blue-400">
+                                  +UGX {item.additionalAmount.toLocaleString()}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="mt-4">
+                            <div className="mb-1 flex items-center justify-between text-[11px] font-medium text-muted-foreground">
+                              <span>Collection progress</span>
+                              <span>{Math.round(percentagePaid)}%</span>
+                            </div>
+                            <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                              <div
+                                className={`h-full rounded-full transition-all duration-500 ${
+                                  percentagePaid >= 100
+                                    ? "bg-green-500"
+                                    : percentagePaid >= 70
+                                    ? "bg-amber-500"
+                                    : "bg-primary"
+                                }`}
+                                style={{ width: `${Math.min(percentagePaid, 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
+
+      {selectedPackageName && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setSelectedPackageName(null)}>
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <Card className="relative z-10 w-full max-w-2xl overflow-hidden border border-primary/10 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <CardHeader className="border-b bg-primary/5">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="text-base">{selectedPackageName} clients</CardTitle>
+                <button
+                  type="button"
+                  onClick={() => setSelectedPackageName(null)}
+                  className="rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-[11px] font-medium text-primary hover:bg-primary/10"
+                >
+                  Close
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent className="max-h-[75vh] overflow-y-auto p-4">
+              {selectedPackageClients.length > 0 ? (
+                <div className="space-y-2">
+                  {selectedPackageClients.map((client) => (
+                    <div key={client.clientName} className="rounded-md border bg-white/70 p-3 text-sm dark:bg-gray-950/30">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-medium text-foreground">{client.clientName}</p>
+                        <span className="font-semibold text-green-600 dark:text-green-400">
+                          Paid: UGX {client.paid.toLocaleString()}
+                        </span>
+                      </div>
+                      <p className={`mt-1 text-xs ${client.balance > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                        Balance: UGX {client.balance.toLocaleString()}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No clients recorded for this package.</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </AdminLayout>
   );
 }

@@ -75,13 +75,13 @@ describe("hasRouteAccess", () => {
     expect(ROLES.admin.canManageRoles).toBe(false);
   });
 
-  it("returns the proper default route for each allowed role", () => {
+  it("returns the top sidebar item as the default route for each allowed role", () => {
     expect(getDefaultRoute("developer")).toBe("/business-summary");
     expect(getDefaultRoute("secretary")).toBe("/business-summary");
     expect(getDefaultRoute("admin")).toBe("/business-summary");
     expect(getDefaultRoute("business")).toBe("/business-summary");
-    expect(getDefaultRoute("media")).toBe("/landing");
-    expect(getDefaultRoute("tech")).toBe("/landing");
+    expect(getDefaultRoute("media")).toBe("/business-summary");
+    expect(getDefaultRoute("tech")).toBe("/business-summary");
   });
 
   describe("normalizeRole", () => {

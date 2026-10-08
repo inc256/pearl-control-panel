@@ -1,6 +1,6 @@
 // components/ui/StatCard.tsx
-import { useState, useEffect, useRef, ReactNode, useCallback } from "react";
-import { Eye, X, ChevronRight } from "lucide-react";
+import { useState, useEffect, useRef, ReactNode, useCallback, useMemo } from "react";
+import { Eye, X, ChevronRight, ChevronLeft } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -26,6 +26,10 @@ export interface StatCardProps<T = any> {
   modalMaxWidth?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl";
   onViewClick?: () => void;
   itemsPerPage?: number;
+  sortable?: boolean;
+  exportRows?: Array<Record<string, unknown>>;
+  exportFilename?: string;
+  exportSheetName?: string;
 }
 
 const StatCard = <T extends any>({
@@ -48,18 +52,53 @@ const StatCard = <T extends any>({
   viewButtonText = "View",
   modalMaxWidth = "2xl",
   onViewClick,
-  itemsPerPage = 50,
+  itemsPerPage = 100,
+  sortable = false,
+  exportRows,
+  exportFilename,
+  exportSheetName = "Data",
 }: StatCardProps<T>) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [currentPage, setCurrentPage] = useState(1);
   const modalRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const firstFocusableRef = useRef<HTMLElement | null>(null);
 
-  const hasDetails = details && details.length > 0;
-  const displayItems = hasDetails ? details.slice(0, itemsPerPage) : [];
-  const hasMoreItems = hasDetails && details.length > itemsPerPage;
+  const pageSize = Math.min(Math.max(itemsPerPage, 1), 100);
+
+  const getItemDate = (item: any) => {
+    const value = item?.date ?? item?.created_at ?? item?.createdAt ?? item?.created ?? item?.updated_at ?? item?.updatedAt;
+    if (!value) return null;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  const sortedDetails = useMemo(() => {
+    if (!details || details.length === 0 || !sortable) {
+      return details ?? [];
+    }
+
+    const hasDateValues = details.some((item) => getItemDate(item));
+    if (!hasDateValues) {
+      return details;
+    }
+
+    return [...details].sort((a, b) => {
+      const aDate = getItemDate(a)?.getTime() ?? 0;
+      const bDate = getItemDate(b)?.getTime() ?? 0;
+      return sortDirection === "desc" ? bDate - aDate : aDate - bDate;
+    });
+  }, [details, sortable, sortDirection]);
+
+  const totalPages = Math.max(1, Math.ceil((sortedDetails?.length ?? 0) / pageSize));
+  const displayItems = sortedDetails.length > 0 ? sortedDetails.slice((currentPage - 1) * pageSize, currentPage * pageSize) : [];
+  const hasDetails = sortedDetails.length > 0;
+  const hasMoreItems = sortedDetails.length > pageSize;
+
+  useEffect(() => setCurrentPage(1), [details, sortDirection, itemsPerPage]);
 
   // Handle modal open/close with animation
   const handleOpen = useCallback(() => {
@@ -115,7 +154,7 @@ const StatCard = <T extends any>({
   };
 
   const colorClasses = {
-    primary: "bg-primary/10 text-primary border-primary/20",
+    primary: "bg-[#5C0120]/10 text-[#5C0120] border-[#5C0120]/20 dark:bg-[#5C0120]/20 dark:text-[#f5dfe6] dark:border-[#5C0120]/40",
     green: "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800",
     amber: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800",
     red: "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800",
@@ -159,6 +198,15 @@ const StatCard = <T extends any>({
     return val;
   };
 
+  const handleExport = useCallback(async () => {
+    if (!exportRows || !exportFilename) return;
+    const XLSX = await import("xlsx");
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    XLSX.utils.book_append_sheet(workbook, worksheet, exportSheetName);
+    XLSX.writeFile(workbook, `${exportFilename}.xlsx`);
+  }, [exportFilename, exportRows, exportSheetName]);
+
   return (
     <>
       {/* Main Stat Card */}
@@ -174,8 +222,10 @@ const StatCard = <T extends any>({
         {/* Gradient background overlay */}
         <div
           className={cn(
-            "absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-300",
-            `bg-gradient-to-br from-${color}-500 to-transparent`
+            "absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300",
+            color === "primary"
+              ? "bg-gradient-to-br from-[#5C0120]/15 via-[#5C0120]/8 to-transparent"
+              : `bg-gradient-to-br from-${color}-500/15 to-transparent`
           )}
         />
 
@@ -183,7 +233,9 @@ const StatCard = <T extends any>({
         <div
           className={cn(
             "absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300",
-            `ring-1 ring-${color}-200/50 dark:ring-${color}-800/30`
+            color === "primary"
+              ? "ring-1 ring-[#5C0120]/20 dark:ring-[#5C0120]/30"
+              : `ring-1 ring-${color}-200/50 dark:ring-${color}-800/30`
           )}
         />
 
@@ -302,15 +354,35 @@ const StatCard = <T extends any>({
 
             {/* Modal Header */}
             <CardHeader className="border-b pr-14">
-              <CardTitle id="modal-title" className="text-lg flex items-center gap-2">
-                {detailTitle || title}
-                <Badge variant="secondary" className="text-xs font-normal">
-                  {details.length} item{details.length !== 1 ? "s" : ""}
-                </Badge>
-              </CardTitle>
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <CardTitle id="modal-title" className="text-lg flex items-center gap-2">
+                  {detailTitle || title}
+                  <Badge variant="secondary" className="text-xs font-normal">
+                    {sortedDetails.length} item{sortedDetails.length !== 1 ? "s" : ""}
+                  </Badge>
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  {sortable && sortedDetails.some((item) => getItemDate(item)) && (
+                    <button
+                      onClick={() => setSortDirection((prev) => (prev === "desc" ? "asc" : "desc"))}
+                      className="inline-flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/10"
+                    >
+                      Sort: {sortDirection === "desc" ? "Newest first" : "Oldest first"}
+                    </button>
+                  )}
+                  {exportRows && exportFilename && (
+                    <button
+                      onClick={handleExport}
+                      className="inline-flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/10"
+                    >
+                      Export Excel
+                    </button>
+                  )}
+                </div>
+              </div>
               {hasMoreItems && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Showing first {itemsPerPage} items
+                  Showing {Math.min((currentPage - 1) * pageSize + 1, sortedDetails.length)}-{Math.min(currentPage * pageSize, sortedDetails.length)} of {sortedDetails.length} items
                 </p>
               )}
             </CardHeader>
@@ -321,7 +393,7 @@ const StatCard = <T extends any>({
               className="overflow-y-auto p-4"
               style={{ maxHeight: "calc(85vh - 130px)" }}
             >
-              {details.length === 0 ? (
+              {sortedDetails.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <div className="text-4xl mb-3">📭</div>
                   <p className="text-muted-foreground">{emptyText}</p>
@@ -344,10 +416,30 @@ const StatCard = <T extends any>({
                       )}
                     </div>
                   ))}
-                  
+
                   {hasMoreItems && (
-                    <div className="text-center text-sm text-muted-foreground py-2 border-t pt-4">
-                      + {details.length - itemsPerPage} more items not shown
+                    <div className="flex items-center justify-between gap-3 border-t pt-4">
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                        className="inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        Previous
+                      </button>
+                      <div className="text-sm text-muted-foreground">
+                        Page {currentPage} of {totalPages}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                        disabled={currentPage >= totalPages}
+                        className="inline-flex items-center gap-2 rounded-md border border-primary/20 bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Next
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
                     </div>
                   )}
                 </div>

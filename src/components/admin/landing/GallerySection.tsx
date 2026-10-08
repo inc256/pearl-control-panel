@@ -108,8 +108,20 @@ export default function GallerySection() {
 
   const copyLink = async (url: string) => {
     try {
-      await navigator.clipboard.writeText(url);
-      toast.success("Link copied to clipboard");
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = url;
+        textarea.setAttribute("readonly", "true");
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      toast.success("Image link copied");
     } catch {
       toast.error("Unable to copy link");
     }
@@ -144,25 +156,33 @@ export default function GallerySection() {
           </div>
         )}
          {rows.length === 0 && <p className="text-muted-foreground text-sm">No gallery items yet.</p>}
-         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
            {rows.map(img => (
-             <div key={img.id} className="rounded-md border border-border overflow-hidden bg-card group">
+             <div key={img.id} className="overflow-hidden rounded-md border border-border bg-card group">
                 {img.media_type === "video" ? (
-                  <video src={img.image_url} controls className="h-44 w-full object-cover" aria-label={img.alt_text ?? img.title ?? "Gallery video"}>
+                  <video src={img.image_url} controls className="h-48 w-full object-cover sm:h-52" aria-label={img.alt_text ?? img.title ?? "Gallery video"}>
                     Your browser does not support the video tag.
                   </video>
                 ) : (
-                  <img src={img.image_url} alt={img.alt_text ?? img.title ?? "Gallery image"} className="h-44 w-full object-cover" />
+                  <img src={img.image_url} alt={img.alt_text ?? img.title ?? "Gallery image"} className="h-48 w-full object-cover sm:h-52" />
                 )}
-               <div className="p-3 space-y-2">
-                 {img.title && <p className="font-medium">{img.title}</p>}
-                 {img.category && <p className="text-sm text-muted-foreground">Category: {img.category}</p>}
-                 <div className="flex gap-2">
-                   <Button size="sm" variant="ghost" onClick={() => copyLink(img.image_url)}><Copy className="h-4 w-4" /></Button>
+               <div className="space-y-2 p-3">
+                 {img.title && <p className="font-medium text-sm sm:text-base">{img.title}</p>}
+                 {img.category && <p className="text-xs text-muted-foreground sm:text-sm">Category: {img.category}</p>}
+                 <div className="flex flex-wrap gap-2">
+                   <Button
+                     size="sm"
+                     variant="ghost"
+                     onClick={() => copyLink(img.image_url)}
+                     aria-label="Copy image link"
+                     className="flex-1 sm:flex-none"
+                   >
+                     <Copy className="h-4 w-4" />
+                   </Button>
                    {canEditGallery && (
                      <>
-                       <Button size="sm" variant="ghost" onClick={() => setEditing(img)}><Pencil className="h-4 w-4" /></Button>
-                       <Button size="sm" variant="ghost" onClick={() => remove(img.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                       <Button size="sm" variant="ghost" onClick={() => setEditing(img)} aria-label="Edit gallery item" className="flex-1 sm:flex-none"><Pencil className="h-4 w-4" /></Button>
+                       <Button size="sm" variant="ghost" onClick={() => remove(img.id)} aria-label="Delete gallery item" className="flex-1 sm:flex-none"><Trash2 className="h-4 w-4 text-destructive" /></Button>
                      </>
                    )}
                  </div>
