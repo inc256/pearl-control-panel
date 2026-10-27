@@ -9,7 +9,7 @@ import StatCard from "@/components/ui/StatCard";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { DATA_CHANGED_EVENT, clearSessionCache, readSessionCache, writeSessionCache } from "@/lib/dataCache";
 import { useAuth } from "@/auth/useAuth";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis } from "recharts";
 import { 
   Users, 
   ArrowUpCircle, 
@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 
 const SUMMARY_CACHE_KEY = "pearl:business-summary";
+const PACKAGE_CHART_COLORS = ["#5C0120", "#b45309", "#16a34a", "#2563eb", "#7c3aed", "#db2777"];
 
 interface ContributorBirthday {
   id: string;
@@ -739,6 +740,13 @@ export default function BusinessSummary() {
     };
   }, [selectedMonthKey, stats.incomeList, stats.expenditureList]);
 
+  const bookingStatusData = [
+    { name: "Pending", value: stats.bookingsPending, fill: "#d97706" },
+    { name: "Confirmed", value: stats.bookingsConfirmed, fill: "#5C0120" },
+    { name: "Completed", value: stats.bookingsCompleted, fill: "#16a34a" },
+    { name: "Cancelled", value: stats.bookingsCancelled, fill: "#dc2626" },
+  ].filter((status) => status.value > 0);
+
   useEffect(() => {
     if (selectedMonthKey) {
       setSelectedMonthTab("income");
@@ -779,6 +787,7 @@ export default function BusinessSummary() {
 
   return (
     <AdminLayout title="Business Summary" description="Overall business performance at a glance">
+      <div className="flex flex-col">
       <>
         {/* Header with refresh */}
         <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
@@ -822,7 +831,7 @@ export default function BusinessSummary() {
         </div>
       </>
 
-      <div className="mb-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <div className="order-last mb-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card className="border border-primary/15 bg-gradient-to-br from-[#5C0120]/5 via-white to-[#5C0120]/5 shadow-sm shadow-primary/10 dark:from-[#5C0120]/10 dark:via-background dark:to-[#5C0120]/10">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
@@ -981,25 +990,23 @@ export default function BusinessSummary() {
               }}
               className="w-full min-h-[260px] sm:min-h-[300px]"
             >
-              <BarChart
-                data={[
-                  { name: "Bookings", pending: stats.bookingsPending, confirmed: stats.bookingsConfirmed, completed: stats.bookingsCompleted, cancelled: stats.bookingsCancelled }
-                ]}
-                margin={{ top: 10, right: 8, left: 0, bottom: 0 }}
-                barSize={18}
-              >
-                <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                <XAxis dataKey="name" tickLine={false} axisLine={false} />
-                <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+              <PieChart>
                 <ChartTooltip
-                  cursor={{ fill: "rgba(92, 1, 32, 0.06)" }}
-                  content={<ChartTooltipContent formatter={(value) => [Number(value).toLocaleString(), "Bookings"]} />}
+                  content={<ChartTooltipContent formatter={(value, name) => [Number(value).toLocaleString(), String(name)]} />}
                 />
-                <Bar dataKey="pending" radius={[6, 6, 0, 0]} fill="#d97706" />
-                <Bar dataKey="confirmed" radius={[6, 6, 0, 0]} fill="#5C0120" />
-                <Bar dataKey="completed" radius={[6, 6, 0, 0]} fill="#16a34a" />
-                <Bar dataKey="cancelled" radius={[6, 6, 0, 0]} fill="#dc2626" />
-              </BarChart>
+                <Pie
+                  data={bookingStatusData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={100}
+                >
+                  {bookingStatusData.map((status) => (
+                    <Cell key={status.name} fill={status.fill} />
+                  ))}
+                </Pie>
+              </PieChart>
             </ChartContainer>
             <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
               <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#d97706]" />Pending</div>
@@ -1078,28 +1085,35 @@ export default function BusinessSummary() {
                   }}
                   className="w-full min-h-[260px] sm:min-h-[300px]"
                 >
-                  <BarChart
-                    data={stats.packageSummaries.filter((item) => item.clients > 0).slice(0, 6)}
-                    margin={{ top: 10, right: 12, left: 0, bottom: 20 }}
-                    barSize={22}
-                    onClick={(state: any) => {
-                      const payload = state?.activePayload?.[0]?.payload ?? state?.payload;
-                      const packageName = payload?.name ?? payload?.packageName ?? payload?.label;
-                      if (packageName) setSelectedPackageName(String(packageName));
-                    }}
-                  >
-                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                    <XAxis dataKey="name" tickLine={false} axisLine={false} angle={-20} textAnchor="end" height={48} />
-                    <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+                  <PieChart>
                     <ChartTooltip
-                      cursor={{ fill: "rgba(92, 1, 32, 0.06)" }}
-                      content={<ChartTooltipContent formatter={(value) => [Number(value).toLocaleString(), "Clients"]} />}
+                      content={<ChartTooltipContent formatter={(value, name) => [Number(value).toLocaleString(), String(name)]} />}
                     />
-                    <Bar dataKey="clients" radius={[6, 6, 0, 0]} fill="#5C0120" />
-                  </BarChart>
+                    <Pie
+                      data={stats.packageSummaries.filter((item) => item.clients > 0)}
+                      dataKey="clients"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={100}
+                      onClick={(entry) => {
+                        if (typeof entry.name === "string") setSelectedPackageName(entry.name);
+                      }}
+                      className="cursor-pointer"
+                    >
+                      {stats.packageSummaries.filter((item) => item.clients > 0).map((item, index) => (
+                        <Cell key={item.name} fill={PACKAGE_CHART_COLORS[index % PACKAGE_CHART_COLORS.length]} />
+                      ))}
+                    </Pie>
+                  </PieChart>
                 </ChartContainer>
-                <div className="mt-3 flex items-center gap-2 text-[11px] text-muted-foreground">
-                  <span className="h-2.5 w-2.5 rounded-sm bg-[#5C0120]" />Clients per package
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-[11px] text-muted-foreground">
+                  {stats.packageSummaries.filter((item) => item.clients > 0).map((item, index) => (
+                    <div key={item.name} className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: PACKAGE_CHART_COLORS[index % PACKAGE_CHART_COLORS.length] }} />
+                      {item.name}
+                    </div>
+                  ))}
                 </div>
                 <p className="mt-3 text-xs text-muted-foreground">
                   {stats.packageSummaries.reduce((sum, item) => sum + item.clients, 0)} clients are distributed across the active package mix.
@@ -1400,6 +1414,7 @@ export default function BusinessSummary() {
           </Card>
         </div>
       )}
+      </div>
     </AdminLayout>
   );
 }
