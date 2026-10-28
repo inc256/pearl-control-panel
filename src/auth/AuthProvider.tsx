@@ -189,6 +189,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return { error: error.message };
     }
 
+    let profileResult = await (supabase as any)
+      .from("profiles")
+      .select("approval_status")
+      .eq("user_id", data.user.id)
+      .maybeSingle();
+    if (profileResult.error) {
+      profileResult = await (supabase as any)
+        .from("profiles")
+        .select("user_id")
+        .eq("user_id", data.user.id)
+        .maybeSingle();
+    }
+    const { data: profile, error: profileError } = profileResult;
+
+    if (!profileError && profile && (profile.approval_status === "pending" || profile.approval_status === "rejected")) {
+      await supabase.auth.signOut();
+      setIsLoading(false);
+      const approvalMessage = profile.approval_status === "rejected"
+        ? "Your account was disapproved. Contact a Secretary or Developer."
+        : "Your account is awaiting approval from a Secretary or Developer.";
+      setError(approvalMessage);
+      return { error: approvalMessage };
+    }
+
     try {
       localStorage.setItem(REMEMBER_ME_KEY, String(rememberMe));
     } catch {

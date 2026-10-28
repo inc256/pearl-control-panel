@@ -55,7 +55,7 @@ export default function Auth() {
       } else {
         const { error } = await signUp(email, password, name, role);
         if (error) toast.error(error);
-        else toast.success("Account created — you can now sign in.");
+        else toast.success("Account created — waiting for approval from a Secretary or Developer.");
       }
     }
     setBusy(false);

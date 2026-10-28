@@ -13,6 +13,8 @@ const Clients = lazy(() => import("@/pages/Clients"));
 const Payments = lazy(() => import("@/pages/Payments"));
 const ContributionList = lazy(() => import("@/pages/ContributionList"));
 const Contributions = lazy(() => import("@/pages/Contributions"));
+const DocumentProcessing = lazy(() => import("@/pages/DocumentProcessing"));
+const BrandIdentity = lazy(() => import("@/pages/BrandIdentity"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
 import AuthLayout from "@/layouts/AuthLayout";
@@ -101,6 +103,14 @@ export const routeConfig: AppRouteConfig[] = [
   {
     path: "/roles",
     element: withProtectedRoute(<Roles />),
+  },
+  {
+    path: "/document-processing",
+    element: withProtectedRoute(<DocumentProcessing />),
+  },
+  {
+    path: "/brand-identity",
+    element: withProtectedRoute(<BrandIdentity />),
   },
   {
     path: "*",

@@ -12,7 +12,7 @@ import { notifyDataChanged } from "@/lib/dataCache";
 import { useAuth } from "@/auth/useAuth";
 import { ROLES, type AppRole } from "@/lib/roles";
 import type { Database } from "@/integrations/supabase/types";
-import { Shield, UserCog, Loader2, Users, Search, Filter, ChevronDown, ChevronUp, User, Mail, Key } from "lucide-react";
+import { Shield, UserCog, Loader2, Users, Search, Filter, ChevronDown, ChevronUp, User, Mail, Key, Trash2, CheckCircle2, XCircle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +21,8 @@ interface UserRoleRow {
   role: string | null;
   email: string | null;
   display_name: string | null;
+  approval_status?: string | null;
+  requested_role?: string | null;
 }
 
 export default function Roles() {
@@ -42,37 +44,33 @@ export default function Roles() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [{ data: rolesData, error: rolesError }, { data: profilesData, error: profilesError }] = await Promise.all([
-        supabase.from('user_roles').select('user_id, role').order('user_id'),
-        supabase.from('profiles').select('user_id, email, display_name').order('user_id'),
+      const db = supabase as any;
+      const [{ data: rolesData, error: rolesError }, profilesResult] = await Promise.all([
+        db.from('user_roles').select('user_id, role').order('user_id'),
+        db.from('profiles').select('user_id, email, display_name, approval_status, requested_role').order('user_id'),
       ]);
+      let profilesData = profilesResult.data;
+      let profilesError = profilesResult.error;
+      if (profilesError) {
+        const legacyProfiles = await db.from('profiles').select('user_id, email, display_name').order('user_id');
+        profilesData = legacyProfiles.data;
+        profilesError = legacyProfiles.error;
+      }
 
       if (rolesError) throw rolesError;
       if (profilesError) throw profilesError;
 
-      const profileMap = new Map((profilesData || []).map(p => [p.user_id, p]));
-      const combined = (rolesData || []).map(r => {
-        const profile = profileMap.get(r.user_id);
-        return {
-          user_id: r.user_id,
-          role: r.role,
-          email: profile?.email || null,
-          display_name: profile?.display_name || null,
-        };
-      });
+      const roleMap = new Map((rolesData || []).map(r => [r.user_id, r.role]));
+      const combined = (profilesData || []).map(profile => ({
+        user_id: profile.user_id,
+        role: roleMap.get(profile.user_id) || null,
+        email: profile.email || null,
+        display_name: profile.display_name || null,
+        approval_status: profile.approval_status || 'approved',
+        requested_role: profile.requested_role || null,
+      }));
 
-      const missingProfiles = (rolesData || []).filter(r => !profileMap.has(r.user_id));
-      if (missingProfiles.length > 0) {
-        const fallbackRows = missingProfiles.map(r => ({
-          user_id: r.user_id,
-          role: r.role,
-          email: null,
-          display_name: null,
-        }));
-        setRows([...combined, ...fallbackRows]);
-      } else {
-        setRows(combined);
-      }
+      setRows(combined);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load roles";
       toast({
@@ -88,6 +86,16 @@ export default function Roles() {
   useEffect(() => {
     if (!ROLES[myRole]?.canManageRoles) return;
     fetchData();
+
+    const refreshChannel = supabase
+      .channel(`roles-live-${myRole}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, fetchData)
+      .on("postgres_changes", { event: "*", schema: "public", table: "user_roles" }, fetchData)
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(refreshChannel);
+    };
   }, [myRole, fetchData]);
 
   const updateRole = async (userId: string, newRole: string) => {
@@ -139,6 +147,79 @@ export default function Roles() {
     }
   };
 
+  const approveUser = async (userId: string, requestedRole?: string | null) => {
+    try {
+      setSaving(userId);
+      const { error } = await (supabase as any).rpc('approve_user_account', {
+        target_user_id: userId,
+        approved_role: requestedRole || null,
+      });
+      if (error) throw error;
+      const assignedRole = requestedRole || 'business';
+      setRows(currentRows => currentRows.map(row => row.user_id === userId
+        ? { ...row, approval_status: 'approved', role: assignedRole, requested_role: assignedRole }
+        : row));
+      toast({ title: "Account approved", description: "The user can now access the system.", action: undefined });
+      await fetchData();
+      notifyDataChanged();
+    } catch (err) {
+      toast({ title: "Unable to approve account", description: err instanceof Error ? err.message : "Please try again", variant: "destructive" });
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const rejectUser = async (userId: string) => {
+    try {
+      setSaving(userId);
+      const { error } = await (supabase as any).rpc('reject_user_account', { target_user_id: userId });
+      if (error) throw error;
+      setRows(currentRows => currentRows.map(row => row.user_id === userId
+        ? { ...row, approval_status: 'rejected', role: null }
+        : row));
+      toast({ title: "Account disapproved", description: "The account is now shown as disapproved." });
+      await fetchData();
+      notifyDataChanged();
+    } catch (err) {
+      toast({ title: "Unable to disapprove account", description: err instanceof Error ? err.message : "Please try again", variant: "destructive" });
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const deleteUser = async (userId: string, displayName?: string | null) => {
+    if (!ROLES[myRole]?.canManageRoles) {
+      toast({ title: "Unauthorized", description: "You cannot delete users", variant: "destructive" });
+      return;
+    }
+
+    const currentUserId = (await supabase.auth.getUser()).data.user?.id;
+    if (currentUserId === userId) {
+      toast({ title: "Cannot delete user", description: "You cannot delete your own account", variant: "destructive" });
+      return;
+    }
+
+    const userLabel = displayName || "this user";
+    if (!window.confirm(`Delete ${userLabel}? This permanently removes the account and its role.`)) return;
+
+    try {
+      setSaving(userId);
+      setRows(currentRows => currentRows.filter(row => row.user_id !== userId));
+      const { error } = await supabase.rpc("delete_user_account", { target_user_id: userId });
+      if (error) throw error;
+
+      toast({ title: "Success", description: "User deleted successfully" });
+      await fetchData();
+      notifyDataChanged();
+    } catch (err) {
+      await fetchData();
+      const message = err instanceof Error ? err.message : "Failed to delete user";
+      toast({ title: "Error", description: message, variant: "destructive" });
+    } finally {
+      setSaving(null);
+    }
+  };
+
   const toggleRowExpand = (id: string) => {
     setExpandedRows(prev => {
       const newSet = new Set(prev);
@@ -149,6 +230,12 @@ export default function Roles() {
       }
       return newSet;
     });
+  };
+
+  const getApprovalBadge = (status?: string | null) => {
+    if (status === 'pending') return { label: 'Pending approval', className: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800' };
+    if (status === 'rejected') return { label: 'Disapproved', className: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800' };
+    return { label: 'Approved', className: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800' };
   };
 
   const getRoleBadgeColor = (role: string | null) => {
@@ -295,6 +382,34 @@ export default function Roles() {
         </Card>
       </div>
 
+      {rows.some(row => row.approval_status === 'pending' || row.approval_status === 'rejected' || !row.role) && (
+        <Card className="border-amber-200 bg-amber-50/50 shadow-sm dark:border-amber-900 dark:bg-amber-950/20">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base"><CheckCircle2 className="h-5 w-5 text-amber-600" />Pending account approvals</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-2">
+            {rows.filter(row => row.approval_status === 'pending' || row.approval_status === 'rejected' || !row.role).map(row => (
+              <div key={row.user_id} className="flex flex-col gap-3 rounded-lg border bg-background p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="font-medium truncate">{row.display_name || 'Unnamed user'}</p>
+                  <p className="text-xs text-muted-foreground truncate">{row.email || row.user_id}</p>
+                  <Badge variant="outline" className="mt-1">Requested: {row.requested_role || 'media'}</Badge>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" disabled={saving === row.user_id} onClick={() => rejectUser(row.user_id)}>
+                    <XCircle className="mr-2 h-4 w-4" />Disapprove
+                  </Button>
+                  <Button size="sm" disabled={saving === row.user_id} onClick={() => approveUser(row.user_id, row.requested_role)}>
+                    {saving === row.user_id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                    Approve
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Main Card */}
       <Card className="border shadow-sm">
         <CardHeader className="space-y-2 border-b p-3 sm:p-6">
@@ -404,28 +519,53 @@ export default function Roles() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge className={cn(getRoleBadgeColor(row.role), "border text-[10px]")}>
-                              {roleInfo?.label || row.role || 'No Role'}
-                            </Badge>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <Badge className={cn(getRoleBadgeColor(row.role), "border text-[10px]")}>
+                                {roleInfo?.label || row.role || 'No Role'}
+                              </Badge>
+                              <Badge className={cn(getApprovalBadge(row.approval_status).className, "border text-[10px]")}>
+                                {row.approval_status === 'approved' && <CheckCircle2 className="mr-1 h-3 w-3" />}
+                                {getApprovalBadge(row.approval_status).label}
+                              </Badge>
+                            </div>
                           </TableCell>
-                          <TableCell className="text-right">
-                            <Select
-                              value={row.role || 'none'}
-                              onValueChange={(value) => updateRole(row.user_id, value === 'none' ? '' : value)}
-                              disabled={isSaving}
-                            >
-                              <SelectTrigger className="w-36 sm:w-40 h-8 sm:h-9 text-xs sm:text-sm">
-                                <SelectValue placeholder="Select role" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">No Role</SelectItem>
-                                {(Object.keys(ROLES) as AppRole[]).map((r) => (
-                                  <SelectItem key={r} value={r}>
-                                    {ROLES[r].label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                          <TableCell>
+                            <div className="flex items-center justify-end gap-2">
+                              {(row.approval_status === 'approved' || row.approval_status === 'pending') && (
+                                <Button type="button" size="sm" variant="outline" className="min-w-[96px] text-destructive hover:text-destructive" onClick={() => rejectUser(row.user_id)} disabled={isSaving}><XCircle className="mr-1 h-3.5 w-3.5" />Disapprove</Button>
+                              )}
+                              {row.approval_status !== 'approved' && (
+                                <Button type="button" size="sm" className="min-w-[88px]" onClick={() => approveUser(row.user_id, row.requested_role || row.role || 'business')} disabled={isSaving}><CheckCircle2 className="mr-1 h-3.5 w-3.5" />Approve</Button>
+                              )}
+                              <Select
+                                value={row.role || 'none'}
+                                onValueChange={(value) => updateRole(row.user_id, value === 'none' ? '' : value)}
+                                disabled={isSaving}
+                              >
+                                <SelectTrigger className="w-36 sm:w-40 h-8 sm:h-9 text-xs sm:text-sm">
+                                  <SelectValue placeholder="Select role" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">No Role</SelectItem>
+                                  {(Object.keys(ROLES) as AppRole[]).map((r) => (
+                                    <SelectItem key={r} value={r}>
+                                      {ROLES[r].label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                onClick={() => deleteUser(row.user_id, row.display_name)}
+                                disabled={isSaving}
+                                aria-label={`Delete ${row.display_name || row.email || "user"}`}
+                              >
+                                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -452,6 +592,10 @@ export default function Roles() {
                             <Badge className={cn(getRoleBadgeColor(row.role), "border text-[10px]")}>
                               {roleInfo?.label || row.role || 'No Role'}
                             </Badge>
+                            <Badge className={cn(getApprovalBadge(row.approval_status).className, "border text-[10px]")}>
+                              {row.approval_status === 'approved' && <CheckCircle2 className="mr-1 h-3 w-3" />}
+                              {getApprovalBadge(row.approval_status).label}
+                            </Badge>
                           </div>
                           <div className="flex items-center gap-1.5 mt-1 text-xs sm:text-sm text-muted-foreground">
                             <Mail className="h-3 w-3" />
@@ -477,13 +621,19 @@ export default function Roles() {
                               <span className="text-muted-foreground">Role:</span>
                               <span className="font-medium">{roleInfo?.label || row.role || 'No Role'}</span>
                             </div>
-                            <div>
+                            <div className="flex flex-wrap gap-2">
+                              {(row.approval_status === 'approved' || row.approval_status === 'pending') && (
+                                <Button type="button" size="sm" variant="outline" className="min-w-[96px] text-destructive hover:text-destructive" onClick={() => rejectUser(row.user_id)} disabled={isSaving}><XCircle className="mr-1 h-3.5 w-3.5" />Disapprove</Button>
+                              )}
+                              {row.approval_status !== 'approved' && (
+                                <Button type="button" size="sm" className="min-w-[88px]" onClick={() => approveUser(row.user_id, row.requested_role || row.role || 'business')} disabled={isSaving}><CheckCircle2 className="mr-1 h-3.5 w-3.5" />Approve</Button>
+                              )}
                               <Select
                                 value={row.role || 'none'}
                                 onValueChange={(value) => updateRole(row.user_id, value === 'none' ? '' : value)}
                                 disabled={isSaving}
                               >
-                                <SelectTrigger className="w-full h-8 text-xs">
+                                <SelectTrigger className="flex-1 h-8 text-xs">
                                   <SelectValue placeholder="Select role" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -495,6 +645,16 @@ export default function Roles() {
                                   ))}
                                 </SelectContent>
                               </Select>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-destructive hover:text-destructive"
+                                onClick={() => deleteUser(row.user_id, row.display_name)}
+                                disabled={isSaving}
+                              >
+                                <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+                              </Button>
                             </div>
                           </div>
                         </div>
