@@ -429,6 +429,7 @@ export default function Clients() {
   };
 
   const handleEdit = (client: ClientWithDetails) => {
+    setError(null);
     setEditingId(client.id);
     setNewClient({
       first_name: client.first_name,
@@ -446,6 +447,7 @@ export default function Clients() {
   };
 
   const handleCancelEdit = () => {
+    setError(null);
     setEditingId(null);
     setNewClient({
       first_name: '',
@@ -482,11 +484,7 @@ export default function Clients() {
 
   const getPackageTypeBadge = (type: string | null) => {
     if (!type) return null;
-    const colors: { [key: string]: string } = {
-      'hajj': 'bg-emerald-100 text-emerald-800 border-emerald-200',
-      'umrah': 'bg-blue-100 text-blue-800 border-blue-200'
-    };
-    return colors[type.toLowerCase()] || 'bg-gray-100 text-gray-800 border-gray-200';
+    return 'bg-muted text-muted-foreground border-border';
   };
 
   const getBalanceStatus = (balance: number | undefined) => {
@@ -500,22 +498,22 @@ export default function Clients() {
     const status = getBalanceStatus(balance);
     const configs = {
       paid: { 
-        color: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+        color: 'bg-primary/10 text-primary border-primary/20',
         icon: CheckCircle,
         label: 'Fully Paid'
       },
       low: { 
-        color: 'bg-amber-100 text-amber-800 border-amber-200',
+        color: 'bg-muted text-muted-foreground border-border',
         icon: AlertCircle,
         label: 'Low Balance'
       },
       high: { 
-        color: 'bg-red-100 text-red-800 border-red-200',
+        color: 'bg-destructive/10 text-destructive border-destructive/20',
         icon: TrendingUp,
         label: 'Balance Due'
       },
       unknown: { 
-        color: 'bg-gray-100 text-gray-800 border-gray-200',
+        color: 'bg-muted text-muted-foreground border-border',
         icon: Minus,
         label: 'N/A'
       }
@@ -586,7 +584,7 @@ export default function Clients() {
   return (
     <ProtectedPage title="Clients" description="Manage client profiles, portal IDs, and readiness status">
       {error && (
-        <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 flex items-center justify-between text-sm sm:text-base">
+        <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive flex items-center justify-between text-sm sm:text-base">
           <span className="flex-1">{error}</span>
           <button 
             onClick={() => setError(null)} 
@@ -599,57 +597,57 @@ export default function Clients() {
 
       {/* Stats Cards - Responsive Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
-        <Card className="border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/20 dark:to-blue-900/10">
+        <Card className="border-0 shadow-sm">
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Clients</p>
                 <p className="text-lg sm:text-2xl font-bold">{totalClients}</p>
               </div>
-              <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-blue-500/10 flex items-center justify-center">
-                <Users className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+              <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <Users className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/20 dark:to-emerald-900/10">
+        <Card className="border-0 shadow-sm">
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wider">Revenue</p>
-                <p className="text-lg sm:text-2xl font-bold text-emerald-600 truncate">UGX {totalRevenue.toLocaleString()}</p>
+                <p className="text-lg sm:text-2xl font-bold text-primary truncate">UGX {totalRevenue.toLocaleString()}</p>
               </div>
-              <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" />
+              <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-sm bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/20 dark:to-amber-900/10">
+        <Card className="border-0 shadow-sm">
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wider">Outstanding</p>
-                <p className="text-lg sm:text-2xl font-bold text-amber-600 truncate">UGX {totalBalance.toLocaleString()}</p>
+                <p className="text-lg sm:text-2xl font-bold text-foreground truncate">UGX {totalBalance.toLocaleString()}</p>
               </div>
-              <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-amber-500/10 flex items-center justify-center">
-                <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600" />
+              <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-muted flex items-center justify-center">
+                <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-sm bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/20 dark:to-green-900/10">
+        <Card className="border-0 shadow-sm">
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wider">Fully Paid</p>
-                <p className="text-lg sm:text-2xl font-bold text-green-600">{fullyPaid}</p>
+                <p className="text-lg sm:text-2xl font-bold text-primary">{fullyPaid}</p>
               </div>
-              <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-green-500/10 flex items-center justify-center">
-                <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+              <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
               </div>
             </div>
           </CardContent>
@@ -657,11 +655,22 @@ export default function Clients() {
       </div>
 
       {/* Add Client Form - Responsive */}
-      <Card className="mb-4 sm:mb-6 border-0 shadow-sm">
+      <div
+        className={editingId
+          ? "fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4"
+          : ""}
+        role={editingId ? "dialog" : undefined}
+        aria-modal={editingId ? true : undefined}
+        aria-labelledby={editingId ? "client-form-title" : undefined}
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget && editingId) handleCancelEdit();
+        }}
+      >
+      <Card className={`mb-4 sm:mb-6 border-0 shadow-sm ${editingId ? 'max-h-[90vh] w-full max-w-3xl overflow-y-auto' : ''}`}>
         <CardHeader className="border-b p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
-              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <CardTitle id={editingId ? "client-form-title" : undefined} className="flex items-center gap-2 text-base sm:text-lg">
                 <UserPlus className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                 {editingId ? 'Update Client' : 'Add New Client'}
               </CardTitle>
@@ -678,18 +687,23 @@ export default function Clients() {
           </div>
         </CardHeader>
         <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown}>
+          {editingId && error && (
+            <p role="alert" className="mx-4 mt-4 rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive sm:mx-6">
+              {error}
+            </p>
+          )}
           <CardContent className="p-4 sm:p-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-              <div className="sm:col-span-2 lg:col-span-3 xl:col-span-4">
+              {!editingId && <div className="sm:col-span-2 lg:col-span-3 xl:col-span-4">
                 <p className="text-xs text-muted-foreground flex items-center gap-2">
-                  <span className="inline-block h-1 w-1 rounded-full bg-blue-500" />
+                  <span className="inline-block h-1 w-1 rounded-full bg-primary" />
                   Draft mode: fill freely. Nothing is saved until you click Add client.
                 </p>
-              </div>
+              </div>}
               
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-muted-foreground">
-                  First name <span className="text-red-500">*</span>
+                  First name <span className="text-destructive">*</span>
                 </Label>
                 <Input 
                   placeholder="e.g., Amina" 
@@ -702,7 +716,7 @@ export default function Clients() {
               
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-muted-foreground">
-                  Last name <span className="text-red-500">*</span>
+                  Last name <span className="text-destructive">*</span>
                 </Label>
                 <Input 
                   placeholder="e.g., Nabirye" 
@@ -768,7 +782,7 @@ export default function Clients() {
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                   <Package className="h-3 w-3" />
-                  Package <span className="text-red-500">*</span>
+                  Package <span className="text-destructive">*</span>
                 </Label>
                 <Select 
                   value={newClient.package_id}
@@ -864,6 +878,7 @@ export default function Clients() {
           </CardContent>
         </form>
       </Card>
+      </div>
 
       {/* Client Directory - Responsive */}
       <Card className="border-0 shadow-sm">
@@ -1014,12 +1029,12 @@ export default function Clients() {
                               '-'
                             }
                           </TableCell>
-                          <TableCell className="text-right font-mono text-sm text-emerald-600 font-medium">
+                          <TableCell className="text-right font-mono text-sm text-primary font-medium">
                             {client.calculated_paid?.toLocaleString() || '0'}
                           </TableCell>
                           <TableCell className="text-right font-mono text-sm font-medium">
                             {client.calculated_balance !== undefined ? (
-                              <span className={client.calculated_balance <= 0 ? 'text-emerald-600' : 'text-red-600'}>
+                              <span className={client.calculated_balance <= 0 ? 'text-primary' : 'text-destructive'}>
                                 {client.calculated_balance.toLocaleString()}
                               </span>
                             ) : (
@@ -1034,7 +1049,7 @@ export default function Clients() {
                           </TableCell>
                           <TableCell>
                             {client.app_id ? (
-                              <Badge variant="outline" className="font-mono bg-blue-50 border-blue-200 text-[10px]">
+                              <Badge variant="outline" className="font-mono text-[10px]">
                                 {client.app_id}
                               </Badge>
                             ) : (
@@ -1097,7 +1112,7 @@ export default function Clients() {
                               {client.first_name} {client.second_name || ''}
                             </span>
                             {client.app_id && (
-                              <Badge variant="outline" className="font-mono bg-blue-50 border-blue-200 text-[10px]">
+                              <Badge variant="outline" className="font-mono text-[10px]">
                                 {client.app_id}
                               </Badge>
                             )}
@@ -1139,13 +1154,13 @@ export default function Clients() {
                         </div>
                         <div>
                           <span className="text-muted-foreground">Paid:</span>
-                          <span className="ml-1 font-mono text-emerald-600">
+                          <span className="ml-1 font-mono text-primary">
                             {client.calculated_paid?.toLocaleString() || '0'}
                           </span>
                         </div>
                         <div>
                           <span className="text-muted-foreground">Balance:</span>
-                          <span className={`ml-1 font-mono ${(client.calculated_balance || 0) <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                          <span className={`ml-1 font-mono ${(client.calculated_balance || 0) <= 0 ? 'text-primary' : 'text-destructive'}`}>
                             {client.calculated_balance?.toLocaleString() || '0'}
                           </span>
                         </div>
@@ -1221,7 +1236,7 @@ export default function Clients() {
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent className="max-w-[95vw] sm:max-w-md mx-4">
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-red-600 text-base sm:text-lg">
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive text-base sm:text-lg">
               <Trash2 className="h-5 w-5" />
               Delete Client?
             </AlertDialogTitle>
@@ -1234,7 +1249,7 @@ export default function Clients() {
                 .
               </p>
               {clientToDelete?.payments && clientToDelete.payments.length > 0 && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-800">
+                <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 text-destructive">
                   <p className="text-sm font-medium">
                     ⚠️ {clientToDelete.payments.length} payment{clientToDelete.payments.length !== 1 ? 's' : ''} will also be removed.
                   </p>
@@ -1246,7 +1261,7 @@ export default function Clients() {
             <AlertDialogCancel onClick={() => setClientToDelete(null)} className="w-full sm:w-auto">
               Cancel
             </AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700 w-full sm:w-auto">
+            <AlertDialogAction onClick={handleDelete} className="w-full sm:w-auto">
               Delete Client
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1301,7 +1316,7 @@ export default function Clients() {
                               year: 'numeric'
                             })}
                           </span>
-                          <span className="text-sm font-semibold text-emerald-600">
+                          <span className="text-sm font-semibold text-primary">
                             UGX {((payment.total || 0) - (payment.discount || 0)).toLocaleString()}
                           </span>
                         </div>
@@ -1323,10 +1338,10 @@ export default function Clients() {
                         <div className="text-right font-mono">
                           {payment.total?.toLocaleString() || 0}
                         </div>
-                        <div className="text-right font-mono text-red-600">
+                        <div className="text-right font-mono text-destructive">
                           {payment.discount?.toLocaleString() || 0}
                         </div>
-                        <div className="text-right font-mono text-emerald-600 font-semibold">
+                        <div className="text-right font-mono text-primary font-semibold">
                           {((payment.total || 0) - (payment.discount || 0)).toLocaleString()}
                         </div>
                       </div>
@@ -1345,13 +1360,13 @@ export default function Clients() {
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Total Discount:</span>
-                        <span className="font-mono font-semibold text-red-600">
+                        <span className="font-mono font-semibold text-destructive">
                           UGX {selectedClientPayments.reduce((sum, p) => sum + (p.discount || 0), 0).toLocaleString()}
                         </span>
                       </div>
                       <div className="flex justify-between text-sm font-bold">
                         <span>Net Total:</span>
-                        <span className="font-mono text-emerald-600">
+                        <span className="font-mono text-primary">
                           UGX {selectedClientPayments.reduce((sum, p) => sum + ((p.total || 0) - (p.discount || 0)), 0).toLocaleString()}
                         </span>
                       </div>
@@ -1363,10 +1378,10 @@ export default function Clients() {
                       <div className="text-right font-mono">
                         {selectedClientPayments.reduce((sum, p) => sum + (p.total || 0), 0).toLocaleString()}
                       </div>
-                      <div className="text-right font-mono text-red-600">
+                      <div className="text-right font-mono text-destructive">
                         {selectedClientPayments.reduce((sum, p) => sum + (p.discount || 0), 0).toLocaleString()}
                       </div>
-                      <div className="text-right font-mono text-emerald-600">
+                      <div className="text-right font-mono text-primary">
                         {selectedClientPayments.reduce((sum, p) => sum + ((p.total || 0) - (p.discount || 0)), 0).toLocaleString()}
                       </div>
                     </div>

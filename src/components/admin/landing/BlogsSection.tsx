@@ -56,14 +56,14 @@ export default function BlogsSection() {
   };
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle>Blogs</CardTitle>
-        <Button size="sm" onClick={() => setEditing({})}><Plus className="h-4 w-4 mr-1" /> New post</Button>
+    <Card className="overflow-hidden rounded-2xl border-border bg-card shadow-sm">
+      <CardHeader className="flex flex-row items-center justify-between gap-3 border-b border-border/70 px-4 py-4 sm:px-6">
+        <CardTitle className="text-base font-semibold">Blogs</CardTitle>
+        <Button size="sm" className="rounded-lg" onClick={() => setEditing({})}><Plus className="mr-1 h-4 w-4" /> New post</Button>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-5 p-4 sm:p-6">
         {editing && (
-          <div className="rounded-md border border-border p-4 space-y-4 bg-muted/30">
+          <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-4 sm:p-5">
             <div className="flex items-center justify-between">
               <h4 className="font-semibold">{editing.id ? "Edit post" : "New post"}</h4>
               <Button variant="ghost" size="sm" onClick={() => setEditing(null)}><X className="h-4 w-4" /></Button>
@@ -81,9 +81,9 @@ export default function BlogsSection() {
         <div className="grid sm:grid-cols-2 gap-4">
           {rows.length === 0 && !editing && <p className="text-muted-foreground text-sm">No posts yet.</p>}
           {rows.map(b => (
-            <div key={b.id} className="rounded-md border border-border overflow-hidden bg-card flex flex-col">
+            <div key={b.id} className="flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md">
               {b.image_url && <img src={b.image_url} alt={b.title} className="h-40 w-full object-cover" />}
-              <div className="p-3 flex-1 flex flex-col">
+              <div className="flex flex-1 flex-col p-4">
                 <p className="font-medium">{b.title}</p>
                 {b.excerpt && <p className="text-sm text-muted-foreground mt-2">{b.excerpt}</p>}
                 <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">

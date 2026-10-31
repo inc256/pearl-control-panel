@@ -37,6 +37,8 @@ import { exportToExcel } from "@/lib/exportToExcel";
 type Contribution = Tables<'contributions'>;
 
 const CONTRIBUTIONS_CACHE_KEY = "pearl:contributions";
+const formatContributionAmount = (amount: number) =>
+  `UGX ${new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(amount)}`;
 
 interface Member {
   id: string;
@@ -46,6 +48,7 @@ interface Member {
   total_amount: number;
   paid_amount: number;
   balance: number;
+  excess: number;
   full_name: string;
 }
 
@@ -71,7 +74,8 @@ function buildMembers(contributionsList: ContributionWithMember[]): Member[] {
         date_of_birth: c.date_of_birth,
         total_amount: totalAmount,
         paid_amount: paidAmount,
-        balance: totalAmount - paidAmount,
+        balance: Math.max(totalAmount - paidAmount, 0),
+        excess: Math.max(paidAmount - totalAmount, 0),
         full_name: fullName
       });
       return;
@@ -80,7 +84,8 @@ function buildMembers(contributionsList: ContributionWithMember[]): Member[] {
     const member = memberMap.get(key)!;
     member.total_amount += totalAmount;
     member.paid_amount += paidAmount;
-    member.balance = member.total_amount - member.paid_amount;
+    member.balance = Math.max(member.total_amount - member.paid_amount, 0);
+    member.excess = Math.max(member.paid_amount - member.total_amount, 0);
   });
 
   return Array.from(memberMap.values());
@@ -561,7 +566,7 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
       const contribs = p.contribution as any[] || [];
       paidAmount += contribs.reduce((sum, c) => sum + (c.amount || 0), 0);
     });
-    const balance = totalAmount - paidAmount;
+    const balance = Math.max(totalAmount - paidAmount, 0);
     
     setSelectedMemberPayments(sortedPayments);
     setSelectedMemberName(memberName);
@@ -588,7 +593,8 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
       const contribs = c.contribution as any[] || [];
       return sum + contribs.reduce((s, contrib) => s + (contrib.amount || 0), 0);
     }, 0);
-    const balance = totalAmount - paidAmount;
+    const balance = Math.max(totalAmount - paidAmount, 0);
+    const excess = Math.max(paidAmount - totalAmount, 0);
     const fullName = `${first.first_name} ${first.second_name || ''}`.trim();
     
     // Count total payments
@@ -608,11 +614,13 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
       totalAmount,
       paidAmount,
       balance,
+      excess,
       paymentCount
     };
   });
 
-  const getPaymentStatus = (balance: number, paid: number) => {
+  const getPaymentStatus = (balance: number, paid: number, excess = 0) => {
+    if (excess > 0) return { label: "Over-contributed", variant: "default" };
     if (balance === 0 && paid > 0) return { label: "Fully Paid", variant: "success" };
     if (balance > 0 && paid > 0) return { label: "Partial", variant: "warning" };
     if (paid === 0 && balance > 0) return { label: "Not Started", variant: "destructive" };
@@ -635,7 +643,7 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
   const filteredMemberRows = memberRows.filter(member => {
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch = member.full_name.toLowerCase().includes(searchLower);
-    const status = getPaymentStatus(member.balance, member.paidAmount);
+    const status = getPaymentStatus(member.balance, member.paidAmount, member.excess);
     const matchesStatus = filterStatus === 'all' || status.label.toLowerCase().replace(' ', '-') === filterStatus;
     return matchesSearch && matchesStatus;
   });
@@ -653,7 +661,7 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
       "Paid Amount": member.paidAmount,
       "Balance": member.balance,
       "Payment Count": member.paymentCount,
-      "Status": getPaymentStatus(member.balance, member.paidAmount).label,
+      "Status": getPaymentStatus(member.balance, member.paidAmount, member.excess).label,
     })), "contributions");
     toast({ title: "Contributions exported", description: `${filteredMemberRows.length} member${filteredMemberRows.length === 1 ? "" : "s"} exported to Excel.` });
   };
@@ -679,7 +687,7 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
   return (
     <ProtectedPage title={pageTitle} description="Track member contributions and payment history">
       {error && (
-        <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 flex items-center justify-between text-sm sm:text-base dark:bg-red-950/20 dark:border-red-800 dark:text-red-400">
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive sm:mb-6 sm:p-4 sm:text-base">
           <span className="flex-1">{error}</span>
           <button 
             onClick={() => setError(null)} 
@@ -691,12 +699,12 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
       )}
 
       {/* Stats Cards - Responsive */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4 mb-4 sm:mb-6">
-        <Card>
+      <div className="mx-auto mb-4 grid w-full max-w-[1600px] grid-cols-2 gap-3 sm:mb-6 sm:gap-4 lg:grid-cols-4">
+        <Card className="rounded-2xl border-border bg-card shadow-sm transition-shadow hover:shadow-md">
           <CardContent className="p-3 sm:p-6">
             <div className="flex items-center gap-2 sm:gap-4">
-              <div className="rounded-lg bg-blue-50 p-2 sm:p-3 dark:bg-blue-950/50">
-                <Users className="h-4 w-4 sm:h-6 sm:w-6 text-blue-600 dark:text-blue-400" />
+              <div className="rounded-xl bg-primary/10 p-2 text-primary sm:p-3">
+                <Users className="h-4 w-4 sm:h-6 sm:w-6" />
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] sm:text-sm font-medium text-muted-foreground truncate">Members</p>
@@ -706,48 +714,48 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="rounded-2xl border-border bg-card shadow-sm transition-shadow hover:shadow-md">
           <CardContent className="p-3 sm:p-6">
             <div className="flex items-center gap-2 sm:gap-4">
-              <div className="rounded-lg bg-green-50 p-2 sm:p-3 dark:bg-green-950/50">
-                <Wallet className="h-4 w-4 sm:h-6 sm:w-6 text-green-600 dark:text-green-400" />
+              <div className="rounded-xl bg-primary/10 p-2 text-primary sm:p-3">
+                <Wallet className="h-4 w-4 sm:h-6 sm:w-6" />
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] sm:text-sm font-medium text-muted-foreground truncate">Expected</p>
-                <p className="text-sm sm:text-2xl font-semibold text-emerald-600 dark:text-emerald-400 truncate">
-                  UGX {totalExpected.toLocaleString()}
+                <p className="break-words text-xs font-semibold leading-snug tabular-nums sm:text-2xl">
+                  {formatContributionAmount(totalExpected)}
                 </p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="rounded-2xl border-border bg-card shadow-sm transition-shadow hover:shadow-md">
           <CardContent className="p-3 sm:p-6">
             <div className="flex items-center gap-2 sm:gap-4">
-              <div className="rounded-lg bg-emerald-50 p-2 sm:p-3 dark:bg-emerald-950/50">
-                <TrendingUp className="h-4 w-4 sm:h-6 sm:w-6 text-emerald-600 dark:text-emerald-400" />
+              <div className="rounded-xl bg-primary/10 p-2 text-primary sm:p-3">
+                <TrendingUp className="h-4 w-4 sm:h-6 sm:w-6" />
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] sm:text-sm font-medium text-muted-foreground truncate">Paid</p>
-                <p className="text-sm sm:text-2xl font-semibold text-emerald-600 dark:text-emerald-400 truncate">
-                  UGX {totalPaid.toLocaleString()}
+                <p className="break-words text-xs font-semibold leading-snug tabular-nums text-primary sm:text-2xl">
+                  {formatContributionAmount(totalPaid)}
                 </p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="rounded-2xl border-border bg-card shadow-sm transition-shadow hover:shadow-md">
           <CardContent className="p-3 sm:p-6">
             <div className="flex items-center gap-2 sm:gap-4">
-              <div className="rounded-lg bg-amber-50 p-2 sm:p-3 dark:bg-amber-950/50">
-                <Clock className="h-4 w-4 sm:h-6 sm:w-6 text-amber-600 dark:text-amber-400" />
+              <div className="rounded-xl bg-primary/10 p-2 text-primary sm:p-3">
+                <Clock className="h-4 w-4 sm:h-6 sm:w-6" />
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] sm:text-sm font-medium text-muted-foreground truncate">Balance</p>
-                <p className="text-sm sm:text-2xl font-semibold text-amber-600 dark:text-amber-400 truncate">
-                  UGX {totalBalance.toLocaleString()}
+                <p className="break-words text-xs font-semibold leading-snug tabular-nums text-foreground sm:text-2xl">
+                  {formatContributionAmount(totalBalance)}
                 </p>
               </div>
             </div>
@@ -756,32 +764,32 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
       </div>
 
       {/* Progress Bar */}
-      <Card className="mb-4 sm:mb-6">
+      <Card className="mb-4 rounded-2xl border-border bg-gradient-to-br from-primary/[0.04] via-card to-card shadow-sm sm:mb-6">
         <CardContent className="p-4 sm:p-6">
           <div className="space-y-2">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1">
               <span className="text-xs sm:text-sm text-muted-foreground">Overall Collection Progress</span>
-              <span className="text-sm sm:text-base font-medium">{collectionProgress.toFixed(1)}%</span>
+              <span className="text-sm font-semibold tabular-nums text-primary sm:text-base">{collectionProgress.toFixed(1)}%</span>
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
               <div
-                className="h-full bg-gradient-to-r from-emerald-500 to-green-500 transition-all duration-500"
+                className="h-full rounded-full bg-primary transition-all duration-500"
                 style={{ width: `${Math.min(collectionProgress, 100)}%` }}
               />
             </div>
             <div className="flex flex-col xs:flex-row justify-between gap-1 text-[10px] sm:text-xs text-muted-foreground">
-              <span>UGX {totalPaid.toLocaleString()} collected</span>
+              <span>{formatContributionAmount(totalPaid)} collected</span>
               <span className="hidden xs:inline">•</span>
-              <span>UGX {totalBalance.toLocaleString()} remaining</span>
+              <span>{formatContributionAmount(totalBalance)} remaining</span>
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Add Forms - Side by Side */}
-      <div className="grid gap-4 sm:gap-6 xl:grid-cols-2 mb-4 sm:mb-6">
-        <Card className="border shadow-sm">
-          <CardHeader className="border-b p-3 sm:p-6">
+      <div className="mx-auto mb-4 grid w-full max-w-[1600px] gap-4 sm:mb-6 sm:gap-6 xl:grid-cols-2">
+        <Card className="overflow-hidden rounded-2xl border-border bg-card shadow-sm">
+          <CardHeader className="border-b border-border/70 p-4 sm:p-6">
             <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
               <UserPlus className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
               Add New Member
@@ -860,8 +868,8 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
           </form>
         </Card>
 
-        <Card className="border shadow-sm">
-          <CardHeader className="border-b p-3 sm:p-6">
+        <Card className="overflow-hidden rounded-2xl border-border bg-card shadow-sm">
+          <CardHeader className="border-b border-border/70 p-4 sm:p-6">
             <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
               <Plus className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
               Add Payment
@@ -945,8 +953,8 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
       </div>
 
       {/* Contribution Ledger */}
-      <Card className="border shadow-sm">
-        <CardHeader className="space-y-2 border-b p-3 sm:p-6">
+      <Card className="mx-auto w-full max-w-[1600px] overflow-hidden rounded-2xl border-border bg-card shadow-sm">
+        <CardHeader className="space-y-4 border-b border-border/70 p-4 sm:p-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
@@ -958,10 +966,10 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Badge variant="outline" className="w-fit text-xs sm:text-sm">
+              <Badge variant="outline" className="w-fit border-primary/15 bg-primary/5 text-xs text-primary sm:text-sm">
                 {filteredMemberRows.length} members
               </Badge>
-              <Button variant="outline" size="sm" onClick={handleExportContributions} className="h-8 text-xs sm:h-9 sm:text-sm" type="button">
+              <Button variant="outline" size="sm" onClick={handleExportContributions} className="h-8 rounded-lg text-xs sm:h-9 sm:text-sm" type="button">
                 <FileSpreadsheet className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 Export Excel
               </Button>
@@ -977,7 +985,7 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
                   placeholder="Search members..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8 h-8 sm:h-9 text-xs sm:text-sm w-full"
+                  className="h-10 w-full rounded-xl border-border bg-background pl-9 text-sm sm:max-w-md"
                 />
               </div>
               
@@ -1004,6 +1012,7 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
                   <SelectItem value="fully-paid">Fully Paid</SelectItem>
                   <SelectItem value="partial">Partial</SelectItem>
                   <SelectItem value="not-started">Not Started</SelectItem>
+                  <SelectItem value="over-contributed">Over-contributed</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1038,9 +1047,9 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
                   </TableHeader>
                   <TableBody>
                     {filteredMemberRows.map((member) => {
-                      const status = getPaymentStatus(member.balance, member.paidAmount);
+                      const status = getPaymentStatus(member.balance, member.paidAmount, member.excess);
                       const progress = member.totalAmount > 0 ? (member.paidAmount / member.totalAmount) * 100 : 0;
-                      const badgeVariant = status.variant as "success" | "warning" | "destructive" | "secondary";
+                      const badgeVariant = status.variant as "default" | "success" | "warning" | "destructive" | "secondary";
 
                       return (
                         <TableRow key={member.key} className="hover:bg-muted/30 transition-colors">
@@ -1054,16 +1063,16 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
                             <div className="grid grid-cols-3 gap-3 text-xs">
                               <div>
                                 <p className="text-muted-foreground">Total</p>
-                                <p className="mt-0.5 font-medium">UGX {member.totalAmount.toLocaleString()}</p>
+                                <p className="mt-0.5 font-medium">{formatContributionAmount(member.totalAmount)}</p>
                               </div>
                               <div>
                                 <p className="text-muted-foreground">Paid</p>
-                                <p className="mt-0.5 font-medium text-emerald-600 dark:text-emerald-400">UGX {member.paidAmount.toLocaleString()}</p>
+                                <p className="mt-0.5 font-medium text-primary">{formatContributionAmount(member.paidAmount)}</p>
                               </div>
                               <div>
                                 <p className="text-muted-foreground">Balance</p>
-                                <p className={cn("mt-0.5 font-medium", member.balance > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
-                                  {member.balance > 0 ? `UGX ${member.balance.toLocaleString()}` : '—'}
+                                <p className={cn("mt-0.5 font-medium", member.balance > 0 ? "text-foreground" : "text-muted-foreground")}>
+                                  {member.balance > 0 ? formatContributionAmount(member.balance) : member.excess > 0 ? `${formatContributionAmount(member.excess)} extra` : '—'}
                                 </p>
                               </div>
                             </div>
@@ -1078,14 +1087,14 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
                               </div>
                               <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
                                 <div
-                                  className="h-full bg-gradient-to-r from-emerald-500 to-green-500 transition-all duration-500"
+                                  className="h-full rounded-full bg-primary transition-all duration-500"
                                   style={{ width: `${Math.min(progress, 100)}%` }}
                                 />
                               </div>
                             </div>
                           </TableCell>
                           <TableCell>
-                            <span className="inline-flex whitespace-nowrap items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-950/30 dark:text-blue-400">
+                            <span className="inline-flex whitespace-nowrap items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
                               {member.paymentCount} payment{member.paymentCount !== 1 ? 's' : ''}
                             </span>
                           </TableCell>
@@ -1129,10 +1138,10 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
               {/* Mobile Card View */}
               <div className="md:hidden divide-y divide-border">
                 {filteredMemberRows.map((member) => {
-                  const status = getPaymentStatus(member.balance, member.paidAmount);
+                  const status = getPaymentStatus(member.balance, member.paidAmount, member.excess);
                   const progress = member.totalAmount > 0 ? (member.paidAmount / member.totalAmount) * 100 : 0;
                   const isExpanded = expandedRows.has(member.key);
-                  const badgeVariant = status.variant as "success" | "warning" | "destructive" | "secondary";
+                  const badgeVariant = status.variant as "default" | "success" | "warning" | "destructive" | "secondary";
 
                   return (
                     <div key={member.key} className="p-3 sm:p-4 hover:bg-muted/30 transition-colors">
@@ -1153,11 +1162,11 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
                           <div className="flex items-center gap-2 mt-1 flex-wrap text-xs sm:text-sm">
                             <span className="text-muted-foreground">Balance:</span>
                             {member.balance > 0 ? (
-                              <span className="font-medium text-amber-600 dark:text-amber-400">
-                                UGX {member.balance.toLocaleString()}
+                              <span className="font-medium text-foreground">
+                                {formatContributionAmount(member.balance)}
                               </span>
                             ) : (
-                              <span className="text-emerald-600 dark:text-emerald-400 font-medium">Fully Paid ✓</span>
+                              <span className="text-primary font-medium">{member.excess > 0 ? `${formatContributionAmount(member.excess)} overpaid` : "Fully Paid ✓"}</span>
                             )}
                             <span className="text-muted-foreground">•</span>
                             <span className="text-muted-foreground">Payments:</span>
@@ -1179,7 +1188,7 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
                         <span className="text-xs font-medium">{Math.round(progress)}%</span>
                         <div className="flex-1 h-1.5 overflow-hidden rounded-full bg-secondary">
                           <div
-                            className="h-full bg-gradient-to-r from-emerald-500 to-green-500 transition-all duration-500"
+                            className="h-full rounded-full bg-primary transition-all duration-500"
                             style={{ width: `${Math.min(progress, 100)}%` }}
                           />
                         </div>
@@ -1191,12 +1200,12 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
                           <div className="grid grid-cols-2 gap-2 text-sm">
                             <div>
                               <span className="text-muted-foreground">Total:</span>
-                              <span className="ml-1 font-medium">UGX {member.totalAmount.toLocaleString()}</span>
+                              <span className="ml-1 font-medium">{formatContributionAmount(member.totalAmount)}</span>
                             </div>
                             <div>
                               <span className="text-muted-foreground">Paid:</span>
-                              <span className="ml-1 font-medium text-emerald-600 dark:text-emerald-400">
-                                UGX {member.paidAmount.toLocaleString()}
+                              <span className="ml-1 font-medium text-primary">
+                                {formatContributionAmount(member.paidAmount)}
                               </span>
                             </div>
                           </div>
@@ -1237,18 +1246,18 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
               Payment History - {selectedMemberName}
             </DialogTitle>
             <div className="grid grid-cols-3 gap-3 mt-3 text-sm">
-              <div className="bg-blue-50 dark:bg-blue-950/30 p-3 rounded-lg">
+              <div className="rounded-lg border border-border bg-muted/40 p-3">
                 <p className="text-xs text-muted-foreground">Total</p>
-                <p className="font-medium text-sm">UGX {selectedMemberTotal.toLocaleString()}</p>
+                <p className="text-sm font-medium">{formatContributionAmount(selectedMemberTotal)}</p>
               </div>
-              <div className="bg-green-50 dark:bg-green-950/30 p-3 rounded-lg">
+              <div className="rounded-lg border border-border bg-muted/40 p-3">
                 <p className="text-xs text-muted-foreground">Paid</p>
-                <p className="font-medium text-sm text-emerald-600 dark:text-emerald-400">UGX {selectedMemberPaid.toLocaleString()}</p>
+                <p className="text-sm font-medium text-primary">{formatContributionAmount(selectedMemberPaid)}</p>
               </div>
-              <div className={`p-3 rounded-lg ${selectedMemberBalance > 0 ? 'bg-amber-50 dark:bg-amber-950/30' : 'bg-green-50 dark:bg-green-950/30'}`}>
+              <div className="rounded-lg border border-border bg-muted/40 p-3">
                 <p className="text-xs text-muted-foreground">Balance</p>
-                <p className={`font-medium text-sm ${selectedMemberBalance > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                  UGX {selectedMemberBalance.toLocaleString()}
+                <p className="text-sm font-medium text-foreground">
+                  {formatContributionAmount(selectedMemberBalance)}
                 </p>
               </div>
             </div>
@@ -1285,7 +1294,7 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
                           <div 
                             key={`${payment.id}-${index}`}
                             className={`grid grid-cols-1 sm:grid-cols-4 gap-2 sm:gap-3 text-sm py-2 border-b border-gray-100 dark:border-gray-800 ${
-                              isEditing ? 'bg-blue-50 dark:bg-blue-950/20 rounded-lg p-3 -mx-2' : ''
+                              isEditing ? 'rounded-lg bg-primary/5 p-3 -mx-2' : ''
                             }`}
                           >
                             {isEditing ? (
@@ -1402,7 +1411,7 @@ export default function Contributions({ pageTitle = "Contributions" }: { pageTit
                     <div className="text-right font-mono">
                       UGX {selectedMemberPaid.toLocaleString()}
                     </div>
-                    <div className="text-right text-emerald-600 dark:text-emerald-400 font-mono">
+                    <div className="text-right font-mono text-primary">
                       UGX {selectedMemberPaid.toLocaleString()}
                     </div>
                     <div></div>

@@ -30,16 +30,16 @@ export default function PackagesSection() {
   };
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle>Packages</CardTitle>
-        <Button asChild size="sm"><Link to="/landing/packages/new"><Plus className="h-4 w-4 mr-1" /> Add package</Link></Button>
+    <Card className="overflow-hidden rounded-2xl border-border bg-card shadow-sm">
+      <CardHeader className="flex flex-row items-center justify-between gap-3 border-b border-border/70 px-4 py-4 sm:px-6">
+        <CardTitle className="text-base font-semibold">Packages</CardTitle>
+        <Button asChild size="sm" className="rounded-lg"><Link to="/landing/packages/new"><Plus className="mr-1 h-4 w-4" /> Add package</Link></Button>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-0">
         <div className="overflow-x-auto">
           <Table>
-            <TableHeader>
-              <TableRow>
+            <TableHeader className="bg-muted/30">
+              <TableRow className="hover:bg-transparent">
                 <TableHead>Name</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Price</TableHead>
@@ -51,7 +51,7 @@ export default function PackagesSection() {
               {loading && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>}
               {!loading && rows.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No packages yet. Click “Add package”.</TableCell></TableRow>}
               {rows.map(p => (
-                <TableRow key={p.id}>
+                <TableRow key={p.id} className="transition-colors hover:bg-muted/30">
                   <TableCell className="font-medium">{p.name}</TableCell>
                   <TableCell><Badge variant={p.type === "hajj" ? "default" : "secondary"} className="capitalize">{p.type}</Badge></TableCell>
                   <TableCell>UGX {Number(p.price).toLocaleString()}</TableCell>

@@ -128,12 +128,12 @@ export default function GallerySection() {
   };
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle>Gallery</CardTitle>
+    <Card className="overflow-hidden rounded-2xl border-border bg-card shadow-sm">
+      <CardHeader className="flex flex-row items-center justify-between gap-3 border-b border-border/70 px-4 py-4 sm:px-6">
+        <CardTitle className="text-base font-semibold">Gallery</CardTitle>
         <div className="flex items-center gap-2">
            {canEditGallery && (
-             <Button size="sm" disabled={busy} onClick={() => ref.current?.click()}>
+             <Button size="sm" className="rounded-lg" disabled={busy} onClick={() => ref.current?.click()}>
                {busy ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Plus className="h-4 w-4 mr-1" />} Upload media
              </Button>
            )}
@@ -141,9 +141,9 @@ export default function GallerySection() {
         </div>
          <input ref={ref} type="file" accept="image/*,video/*" multiple hidden onChange={(e) => onUpload(e.target.files)} />
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-5 p-4 sm:p-6">
         {editing && (
-          <div className="rounded-md border border-border p-4 space-y-4 bg-muted/30">
+          <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-4 sm:p-5">
              <div className="flex items-center justify-between">
                <h4 className="font-semibold">Edit gallery item</h4>
                <Button variant="ghost" size="sm" onClick={() => setEditing(null)}><X className="h-4 w-4" /></Button>
@@ -158,7 +158,7 @@ export default function GallerySection() {
          {rows.length === 0 && <p className="text-muted-foreground text-sm">No gallery items yet.</p>}
          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
            {rows.map(img => (
-             <div key={img.id} className="overflow-hidden rounded-md border border-border bg-card group">
+             <div key={img.id} className="group overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md">
                 {img.media_type === "video" ? (
                   <video src={img.image_url} controls className="h-48 w-full object-cover sm:h-52" aria-label={img.alt_text ?? img.title ?? "Gallery video"}>
                     Your browser does not support the video tag.

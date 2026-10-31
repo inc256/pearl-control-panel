@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ThemeProvider } from "next-themes";
 import { Component, Suspense, useEffect, useState } from "react";
 import { BrowserRouter } from "react-router-dom";
 import type { ReactNode } from "react";
@@ -10,7 +11,13 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/auth/AuthProvider";
 import AppRoutes from "@/routes/AppRoutes";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -70,28 +77,29 @@ const App = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Sonner />
-        <Toaster />
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        <TooltipProvider>
+          <Sonner />
+          <Toaster />
 
-        <ErrorBoundary>
-          {/* ✅ CRITICAL FIX: Provider wraps everything */}
-          <AuthProvider>
-            <BrowserRouter>
-              <Suspense fallback={<div className="p-6">Loading app...</div>}>
-                <AppRoutes />
-              </Suspense>
-            </BrowserRouter>
-          </AuthProvider>
-        </ErrorBoundary>
+          <ErrorBoundary>
+            <AuthProvider>
+              <BrowserRouter>
+                <Suspense fallback={<div className="p-6">Loading app...</div>}>
+                  <AppRoutes />
+                </Suspense>
+              </BrowserRouter>
+            </AuthProvider>
+          </ErrorBoundary>
 
-        {isInstallable && (
-          <div className="fixed bottom-4 right-4 bg-white shadow p-4 rounded">
-            <p className="mb-2">Install Pearl Admin</p>
-            <button onClick={handleInstallClick}>Install</button>
-          </div>
-        )}
-      </TooltipProvider>
+          {isInstallable && (
+            <div className="fixed bottom-4 right-4 rounded bg-card p-4 shadow">
+              <p className="mb-2">Install Pearl Admin</p>
+              <button onClick={handleInstallClick}>Install</button>
+            </div>
+          )}
+        </TooltipProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 };

@@ -53,14 +53,14 @@ export default function HotelsSection() {
   };
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle>Hotels</CardTitle>
-        <Button size="sm" onClick={() => setEditing({})}><Plus className="h-4 w-4 mr-1" /> Add hotel</Button>
+    <Card className="overflow-hidden rounded-2xl border-border bg-card shadow-sm">
+      <CardHeader className="flex flex-row items-center justify-between gap-3 border-b border-border/70 px-4 py-4 sm:px-6">
+        <CardTitle className="text-base font-semibold">Hotels</CardTitle>
+        <Button size="sm" className="rounded-lg" onClick={() => setEditing({})}><Plus className="mr-1 h-4 w-4" /> Add hotel</Button>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-5 p-4 sm:p-6">
         {editing && (
-          <div className="rounded-md border border-border p-4 space-y-4 bg-muted/30">
+          <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-4 sm:p-5">
             <div className="flex items-center justify-between">
               <h4 className="font-semibold">{editing.id ? "Edit hotel" : "New hotel"}</h4>
               <Button variant="ghost" size="sm" onClick={() => setEditing(null)}><X className="h-4 w-4" /></Button>
@@ -76,9 +76,9 @@ export default function HotelsSection() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {rows.length === 0 && !editing && <p className="text-muted-foreground text-sm">No hotels yet.</p>}
           {rows.map(h => (
-            <div key={h.id} className="rounded-md border border-border overflow-hidden bg-card">
+            <div key={h.id} className="group overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md">
               {h.image && <img src={h.image} alt={h.name} className="h-36 w-full object-cover" />}
-              <div className="p-3">
+              <div className="p-4">
                 <p className="font-medium">{h.name}</p>
                 <p className="text-xs text-muted-foreground mt-1">{h.location}</p>
                 {h.description && <p className="text-xs text-muted-foreground mt-1">{h.description}</p>}

@@ -1,24 +1,29 @@
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import PackagesSection from "@/components/admin/landing/PackagesSection";
 import HotelsSection from "@/components/admin/landing/HotelsSection";
 import GallerySection from "@/components/admin/landing/GallerySection";
 import BlogsSection from "@/components/admin/landing/BlogsSection";
 import FaqSection from "@/components/admin/landing/FaqSection";
-import { ArrowUpRight, CircleHelp, FileText, ImageIcon, LayoutDashboard, PackageIcon, Hotel, Sparkles } from "lucide-react";
+import { CircleHelp, FileText, ImageIcon, LayoutDashboard, PackageIcon, Hotel } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 
 const TABS = [
-  { v: "overview", l: "Overview" },
-  { v: "packages", l: "Packages" },
-  { v: "hotels", l: "Hotels" },
-  { v: "gallery", l: "Gallery" },
-  { v: "blogs", l: "Blogs" },
-  { v: "faq", l: "FAQ" },
-];
+  { v: "overview", l: "Overview", icon: <LayoutDashboard className="h-4 w-4" /> },
+  { v: "packages", l: "Packages", icon: <PackageIcon className="h-4 w-4" /> },
+  { v: "hotels", l: "Hotels", icon: <Hotel className="h-4 w-4" /> },
+  { v: "gallery", l: "Gallery", icon: <ImageIcon className="h-4 w-4" /> },
+  { v: "blogs", l: "Blogs", icon: <FileText className="h-4 w-4" /> },
+  { v: "faq", l: "FAQ", icon: <CircleHelp className="h-4 w-4" /> },
+] as const;
+
+type LandingTab = (typeof TABS)[number]["v"];
+
+function isLandingTab(value: string): value is LandingTab {
+  return TABS.some((tab) => tab.v === value);
+}
 
 type OverviewStats = {
   packages: number;
@@ -84,15 +89,15 @@ function LandingOverview() {
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {cards.map((card) => (
-          <Card key={card.label} className="border border-primary/10 bg-gradient-to-br from-white to-primary/[0.02] shadow-[var(--shadow-card)]">
+          <Card key={card.label} className="rounded-2xl border-border bg-card shadow-sm transition-shadow hover:shadow-md">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">{card.label}</CardTitle>
-              <div className={`rounded-lg p-2 ${card.accent}`}>
+              <div className={`rounded-xl p-2.5 ${card.accent}`}>
                 {card.icon}
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold tracking-tight text-foreground">
+              <div className="text-3xl font-semibold tracking-tight text-foreground">
                 {loading ? "—" : card.value}
               </div>
               <p className="mt-2 text-xs text-muted-foreground">{card.helper}</p>
@@ -105,36 +110,67 @@ function LandingOverview() {
 }
 
 export default function Landing() {
-  const [tab, setTab] = useState(() => localStorage.getItem("landing.tab") ?? "overview");
+  const [tab, setTab] = useState<LandingTab>(() => {
+    const savedTab = localStorage.getItem("landing.tab");
+    return savedTab && isLandingTab(savedTab) ? savedTab : "overview";
+  });
+  const [visitedTabs, setVisitedTabs] = useState<LandingTab[]>(() => [tab]);
   useEffect(() => { document.title = "Landing Page — Pearl Hijja Admin"; }, []);
   useEffect(() => { localStorage.setItem("landing.tab", tab); }, [tab]);
 
+  const handleTabChange = (value: string) => {
+    if (!isLandingTab(value)) return;
+    setTab(value);
+    setVisitedTabs((visited) => visited.includes(value) ? visited : [...visited, value]);
+  };
+
   return (
-    <AdminLayout title="Landing Page" description="Landing page content and overview in one place">
-      <Tabs value={tab} onValueChange={setTab} className="w-full">
-        <div className="mb-5 overflow-x-auto px-0">
-          <TabsList className="flex w-full min-w-max gap-1 rounded-xl bg-muted/70 p-1 md:w-max">
+    <AdminLayout title="Landing Page" description="Manage the Pearl Hijja website experience">
+      <div className="mx-auto w-full max-w-[1600px]">
+        <Tabs value={tab} onValueChange={handleTabChange} className="w-full">
+          <div className="mb-6 overflow-x-auto rounded-2xl border border-border bg-muted/30 p-1.5">
+          <TabsList className="flex h-auto w-full min-w-max justify-start gap-1 bg-transparent p-0 md:w-full">
             {TABS.map((t) => (
               <TabsTrigger
                 key={t.v}
                 value={t.v}
-                className="whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:text-sm"
+                className="gap-2 rounded-xl border border-transparent px-3 py-2.5 text-xs font-medium text-muted-foreground transition-all hover:bg-background/70 hover:text-foreground focus-visible:ring-primary data-[state=active]:border-border data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-sm sm:flex-1 sm:px-4 sm:text-sm"
               >
+                {t.icon}
                 {t.l}
               </TabsTrigger>
             ))}
           </TabsList>
         </div>
 
-        <TabsContent value="overview" className="space-y-4">
-          <LandingOverview />
+        <TabsContent forceMount value="overview" className="mt-0 space-y-4 data-[state=inactive]:hidden">
+          {visitedTabs.includes("overview") && (
+            <>
+              <div className="mb-4">
+                <h3 className="text-base font-semibold text-foreground">Content overview</h3>
+                <p className="mt-1 text-sm text-muted-foreground">A quick look at the content across your public website.</p>
+              </div>
+              <LandingOverview />
+            </>
+          )}
         </TabsContent>
-        <TabsContent value="packages" className="space-y-4"><PackagesSection /></TabsContent>
-        <TabsContent value="hotels" className="space-y-4"><HotelsSection /></TabsContent>
-        <TabsContent value="gallery" className="space-y-4"><GallerySection /></TabsContent>
-        <TabsContent value="blogs" className="space-y-4"><BlogsSection /></TabsContent>
-        <TabsContent value="faq" className="space-y-4"><FaqSection /></TabsContent>
-      </Tabs>
+        <TabsContent forceMount value="packages" className="mt-0 space-y-4 data-[state=inactive]:hidden">
+          {visitedTabs.includes("packages") && <PackagesSection />}
+        </TabsContent>
+        <TabsContent forceMount value="hotels" className="mt-0 space-y-4 data-[state=inactive]:hidden">
+          {visitedTabs.includes("hotels") && <HotelsSection />}
+        </TabsContent>
+        <TabsContent forceMount value="gallery" className="mt-0 space-y-4 data-[state=inactive]:hidden">
+          {visitedTabs.includes("gallery") && <GallerySection />}
+        </TabsContent>
+        <TabsContent forceMount value="blogs" className="mt-0 space-y-4 data-[state=inactive]:hidden">
+          {visitedTabs.includes("blogs") && <BlogsSection />}
+        </TabsContent>
+        <TabsContent forceMount value="faq" className="mt-0 space-y-4 data-[state=inactive]:hidden">
+          {visitedTabs.includes("faq") && <FaqSection />}
+        </TabsContent>
+        </Tabs>
+      </div>
     </AdminLayout>
   );
 }

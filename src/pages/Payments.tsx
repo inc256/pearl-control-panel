@@ -9,13 +9,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables } from "@/integrations/supabase/types";
+import type { Json, Tables } from "@/integrations/supabase/types";
 import { notifyDataChanged } from "@/lib/dataCache";
 import { 
   Eye, 
   Plus, 
   Trash2, 
-  RefreshCw, 
   Wallet, 
   CreditCard, 
   Banknote,
@@ -32,12 +31,15 @@ import {
   DollarSign,
   Users,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Pencil,
+  FileText
 } from "lucide-react";
 import { calculateClientPackageTotal } from "@/lib/clientPricing";
 
 type Payment = Tables<'payments'>;
 type Client = Tables<'clients'>;
+type PaymentHistoryEntry = { [key: string]: Json };
 
 interface PaymentWithDetails extends Payment {
   client_name?: string | null;
@@ -47,6 +49,28 @@ interface PaymentWithDetails extends Payment {
   package_name?: string | null;
 }
 
+const getPaymentHistory = (payment: Payment): PaymentHistoryEntry[] =>
+  Array.isArray(payment.payment_history)
+    ? payment.payment_history.filter(
+        (entry): entry is PaymentHistoryEntry =>
+          typeof entry === "object" && entry !== null && !Array.isArray(entry)
+      )
+    : [];
+
+const getPaymentDate = (payment: Payment): string => {
+  const history = getPaymentHistory(payment);
+  const historyDate = history[history.length - 1]?.date;
+  return typeof historyDate === "string" ? historyDate.slice(0, 10) : payment.created_at.slice(0, 10);
+};
+
+const getPaymentNotes = (payment: Payment): string => {
+  const status = payment.status;
+  return typeof status === "object" && status !== null && !Array.isArray(status)
+    && typeof status.notes === "string"
+    ? status.notes
+    : "";
+};
+
 export default function Payments() {
   const [payments, setPayments] = useState<PaymentWithDetails[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -54,16 +78,25 @@ export default function Payments() {
   const [error, setError] = useState<string | null>(null);
   const [selectedPayment, setSelectedPayment] = useState<PaymentWithDetails | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [editingPayment, setEditingPayment] = useState<PaymentWithDetails | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editPayment, setEditPayment] = useState({
+    amount: '',
+    date: '',
+    plan: '',
+    account_no: '',
+    notes: ''
+  });
   
   const [newPayment, setNewPayment] = useState({
     client_id: '',
     amount: '',
     date: '',
-    plan: '',
+    plan: 'Cash',
     account_no: '',
     notes: ''
   });
@@ -78,31 +111,30 @@ export default function Payments() {
       setLoading(true);
       setError(null);
       
-      const { data: paymentsData, error: paymentsError } = await supabase
-        .from('payments')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const [paymentsResult, clientsResult] = await Promise.all([
+        supabase.from('payments').select('*').order('created_at', { ascending: false }),
+        supabase.from('clients').select('*').order('first_name', { ascending: true })
+      ]);
 
-      if (paymentsError) throw paymentsError;
+      if (paymentsResult.error) throw paymentsResult.error;
+      if (clientsResult.error) throw clientsResult.error;
 
-      const normalizedPayments = (paymentsData || []).map((payment: any) => ({
+      const clientsData = clientsResult.data || [];
+      const clientsById = new Map(clientsData.map((client) => [client.id, client]));
+      const normalizedPayments = (paymentsResult.data || []).map((payment) => {
+        const client = clientsById.get(payment.client_id);
+        return {
         ...payment,
-        client_name: payment.client_id ? `Client ${payment.client_id}` : 'Unknown client',
-        client_app_id: null,
-        client_national_id: null,
-        client_balance: null,
+        client_name: client ? `${client.first_name} ${client.second_name || ''}`.trim() : 'Unknown client',
+        client_app_id: client?.app_id || null,
+        client_national_id: client?.national_id || null,
+        client_balance: client?.balance ?? null,
         package_name: null,
-      }));
+        };
+      });
       
       setPayments(normalizedPayments as PaymentWithDetails[]);
-
-      const { data: clientsData, error: clientsError } = await supabase
-        .from('clients')
-        .select('*')
-        .order('first_name', { ascending: true });
-
-      if (clientsError) throw clientsError;
-      setClients(clientsData || []);
+      setClients(clientsData);
 
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -158,6 +190,10 @@ export default function Payments() {
       const additionalAmount = Number((clientData as any).additional_amount || 0);
       const packageTotal = calculateClientPackageTotal(packagePrice, discountAmount, additionalAmount);
       const newBalance = packageTotal - totalPaidSoFar;
+      const paymentDate = newPayment.date || (() => {
+        const today = new Date();
+        return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      })();
 
       const paymentHistory = [
         ...((existingPayments || []).map(p => ({
@@ -167,7 +203,7 @@ export default function Payments() {
           notes: p.payment_history?.[0]?.notes || ''
         }))),
         {
-          date: newPayment.date || new Date().toISOString().split('T')[0],
+          date: paymentDate,
           amount: amount,
           discount: discount,
           notes: newPayment.notes || ''
@@ -188,7 +224,8 @@ export default function Payments() {
         payment_plan: {
           plan: newPayment.plan || 'Cash',
           installments: []
-        }
+        },
+        created_at: `${paymentDate}T12:00:00.000Z`
       };
 
       const { error: insertError } = await supabase
@@ -211,7 +248,7 @@ export default function Payments() {
         client_id: '',
         amount: '',
         date: '',
-        plan: '',
+        plan: 'Cash',
         account_no: '',
         notes: ''
       });
@@ -282,6 +319,112 @@ export default function Payments() {
     }
   };
 
+  const handleEditPayment = (payment: PaymentWithDetails) => {
+    setError(null);
+    setEditingPayment(payment);
+    setEditPayment({
+      amount: String(payment.total || ''),
+      date: getPaymentDate(payment),
+      plan: payment.plan || 'Cash',
+      account_no: payment.account_no || '',
+      notes: getPaymentNotes(payment)
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdatePayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPayment) return;
+
+    const amount = Number(editPayment.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError('Amount is required and must be greater than 0');
+      return;
+    }
+
+    try {
+      const { data: clientData, error: clientError } = await supabase
+        .from('clients')
+        .select('*, packages(price)')
+        .eq('id', editingPayment.client_id)
+        .single();
+
+      if (clientError) throw clientError;
+
+      const { data: clientPayments, error: paymentsError } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('client_id', editingPayment.client_id);
+
+      if (paymentsError) throw paymentsError;
+
+      const totalPaid = (clientPayments || []).reduce((sum, payment) => {
+        const total = payment.id === editingPayment.id ? amount : payment.total || 0;
+        return sum + total - (payment.discount || 0);
+      }, 0);
+      const packageTotal = calculateClientPackageTotal(
+        clientData.packages?.price || 0,
+        Number(clientData.discount_amount || 0),
+        Number(clientData.additional_amount || 0)
+      );
+      const balance = packageTotal - totalPaid;
+
+      const history = getPaymentHistory(editingPayment);
+      const editedHistory = [...history];
+      const lastEntry = editedHistory[editedHistory.length - 1] || {};
+      const editedEntry: PaymentHistoryEntry = {
+        ...lastEntry,
+        date: editPayment.date,
+        amount,
+        discount: editingPayment.discount || 0,
+        notes: editPayment.notes
+      };
+      if (editedHistory.length) {
+        editedHistory[editedHistory.length - 1] = editedEntry;
+      } else {
+        editedHistory.push(editedEntry);
+      }
+
+      const status = editingPayment.status;
+      const currentStatus = typeof status === 'object' && status !== null && !Array.isArray(status) ? status : {};
+      const paymentPlan = editingPayment.payment_plan;
+      const currentPaymentPlan = typeof paymentPlan === 'object' && paymentPlan !== null && !Array.isArray(paymentPlan)
+        ? paymentPlan
+        : {};
+      const paymentStatus = balance <= 0 ? 'Paid' : balance < packageTotal ? 'Partially Paid' : 'Pending';
+
+      const { error: updatePaymentError } = await supabase
+        .from('payments')
+        .update({
+          total: amount,
+          plan: editPayment.plan || 'Cash',
+            account_no: editPayment.plan === 'Bank' ? editPayment.account_no || null : null,
+          payment_history: editedHistory,
+          status: { ...currentStatus, status: paymentStatus, notes: editPayment.notes },
+          payment_plan: { ...currentPaymentPlan, plan: editPayment.plan || 'Cash' }
+        })
+        .eq('id', editingPayment.id);
+
+      if (updatePaymentError) throw updatePaymentError;
+
+      const { error: updateClientError } = await supabase
+        .from('clients')
+        .update({ balance, paid_amount: totalPaid })
+        .eq('id', editingPayment.client_id);
+
+      if (updateClientError) throw updateClientError;
+
+      setError(null);
+      setIsEditDialogOpen(false);
+      setEditingPayment(null);
+      await fetchData();
+      notifyDataChanged();
+    } catch (error) {
+      console.error('Error updating payment:', error);
+      setError('Failed to update payment. Please try again.');
+    }
+  };
+
   const handleViewDetails = (payment: PaymentWithDetails) => {
     setSelectedPayment(payment);
     setIsModalOpen(true);
@@ -333,21 +476,20 @@ export default function Payments() {
     switch (plan) {
       case 'Cash': return <Banknote className="h-3 w-3 sm:h-4 sm:w-4" />;
       case 'Bank': return <CreditCard className="h-3 w-3 sm:h-4 sm:w-4" />;
-      case 'Installments': return <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />;
+      case 'Installments':
+      case 'Mobile Money': return <Wallet className="h-3 w-3 sm:h-4 sm:w-4" />;
       default: return <Wallet className="h-3 w-3 sm:h-4 sm:w-4" />;
     }
   };
 
-  const filteredPayments = payments.filter(payment => {
-    if (filter === 'all') return true;
-    const status = payment.status?.status || 'Pending';
-    return status === filter;
-  }).filter(payment => {
-    if (!searchTerm) return true;
-    const search = searchTerm.toLowerCase();
-    const clientName = `${payment.client_name || ''}`.toLowerCase();
-    const appId = `${payment.client_app_id || ''}`.toLowerCase();
-    return clientName.includes(search) || appId.includes(search);
+  const getPlanLabel = (plan: string | null) => plan === 'Installments' ? 'Mobile Money' : plan || 'N/A';
+
+  const filteredPayments = payments.filter((payment) => {
+    const clientName = (payment.client_name || '').toLowerCase();
+    const paymentDate = getPaymentDate(payment);
+    return clientName.includes(searchTerm.trim().toLowerCase())
+      && (!startDate || paymentDate >= startDate)
+      && (!endDate || paymentDate <= endDate);
   });
 
   // Stats
@@ -371,7 +513,7 @@ export default function Payments() {
 
   return (
     <AdminLayout title="Payments" description="Track payments, installment schedules, and balances">
-      {error && (
+      {error && !isEditDialogOpen && (
         <div className="mb-4 p-3 sm:p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 flex items-center justify-between text-sm sm:text-base">
           <span className="flex-1">{error}</span>
           <button 
@@ -457,29 +599,31 @@ export default function Payments() {
                 <Label className="text-xs sm:text-sm font-medium">Payment Plan <span className="text-red-500">*</span></Label>
                 <Select 
                   value={newPayment.plan}
-                  onValueChange={(value) => setNewPayment({...newPayment, plan: value})}
+                onValueChange={(value) => setNewPayment({...newPayment, plan: value, account_no: value === 'Bank' ? newPayment.account_no : ''})}
                   required
                 >
                   <SelectTrigger className="h-9 sm:h-10 text-sm">
-                    <SelectValue placeholder="Select plan" />
+                  <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Cash">Cash</SelectItem>
                     <SelectItem value="Bank">Bank</SelectItem>
-                    <SelectItem value="Installments">Installments</SelectItem>
+                    <SelectItem value="Mobile Money">Mobile Money</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               
-              <div className="space-y-1.5">
-                <Label className="text-xs sm:text-sm font-medium">Account Number</Label>
-                <Input 
-                  className="h-9 sm:h-10 text-sm"
-                  placeholder="AC-1001" 
-                  value={newPayment.account_no}
-                  onChange={(e) => setNewPayment({...newPayment, account_no: e.target.value})}
-                />
-              </div>
+              {newPayment.plan === 'Bank' && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs sm:text-sm font-medium">Account Number</Label>
+                  <Input
+                    className="h-9 sm:h-10 text-sm"
+                    placeholder="AC-1001"
+                    value={newPayment.account_no}
+                    onChange={(e) => setNewPayment({...newPayment, account_no: e.target.value})}
+                  />
+                </div>
+              )}
               
               <div className="flex items-end sm:col-span-2 lg:col-span-3">
                 <Button type="submit" className="w-full h-9 sm:h-10 text-sm sm:text-base">
@@ -511,10 +655,10 @@ export default function Payments() {
                 <div className="relative flex-1 sm:flex-none">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search..."
+                    placeholder="Search client name..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-8 h-9 text-sm w-full sm:w-48"
+                    className="pl-8 h-9 text-sm w-full sm:w-80 lg:w-96"
                   />
                   {searchTerm && (
                     <button
@@ -526,39 +670,30 @@ export default function Payments() {
                     </button>
                   )}
                 </div>
-                
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowFilters(!showFilters)}
-                  className="h-9 px-3 sm:hidden"
-                  type="button"
-                >
-                  <Search className="h-4 w-4 mr-2" />
-                  Filters
-                  {showFilters ? <ChevronUp className="h-3 w-3 ml-2" /> : <ChevronDown className="h-3 w-3 ml-2" />}
-                </Button>
               </div>
             </div>
             
-            {/* Filters */}
-            <div className={`flex flex-col sm:flex-row gap-2 ${showFilters ? 'block' : 'hidden sm:flex'}`}>
-              <Select value={filter} onValueChange={setFilter}>
-                <SelectTrigger className="h-9 text-sm w-full sm:w-36">
-                  <SelectValue placeholder="Filter" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="Paid">Paid</SelectItem>
-                  <SelectItem value="Partially Paid">Partially Paid</SelectItem>
-                  <SelectItem value="Pending">Pending</SelectItem>
-                  <SelectItem value="Not Ready">Not Ready</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button variant="outline" onClick={fetchData} size="sm" className="h-9 w-full sm:w-auto text-sm">
-                <RefreshCw className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Refresh</span>
-              </Button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="payments-start-date" className="text-xs text-muted-foreground">From</Label>
+                <Input
+                  id="payments-start-date"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="h-9 text-sm w-full sm:w-40"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="payments-end-date" className="text-xs text-muted-foreground">To</Label>
+                <Input
+                  id="payments-end-date"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="h-9 text-sm w-full sm:w-40"
+                />
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -575,59 +710,32 @@ export default function Payments() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
-                      <TableHead className="font-semibold text-xs">Client</TableHead>
-                      <TableHead className="font-semibold text-xs hidden md:table-cell">App ID</TableHead>
-                      <TableHead className="font-semibold text-xs hidden sm:table-cell">Plan</TableHead>
+                      <TableHead className="min-w-[240px] font-semibold text-xs">Client</TableHead>
+                      <TableHead className="font-semibold text-xs">Date</TableHead>
                       <TableHead className="font-semibold text-xs text-right">Amount</TableHead>
-                      <TableHead className="font-semibold text-xs text-right hidden md:table-cell">Discount</TableHead>
                       <TableHead className="font-semibold text-xs text-right hidden lg:table-cell">Net</TableHead>
-                      <TableHead className="font-semibold text-xs text-right hidden xl:table-cell">Balance</TableHead>
-                      <TableHead className="font-semibold text-xs">Status</TableHead>
                       <TableHead className="font-semibold text-xs text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredPayments.map((payment) => (
                       <TableRow key={payment.id} className="hover:bg-muted/30 transition-colors">
-                        <TableCell className="py-3">
+                        <TableCell className="min-w-[240px] whitespace-normal py-3">
                           <div className="flex items-center gap-2">
                             <User className="h-3 w-3 text-muted-foreground" />
-                            <span className="font-medium text-sm truncate max-w-[120px]">
+                            <span className="max-w-[360px] break-words font-medium text-sm">
                               {payment.client_name || 'Unknown client'}
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell className="hidden md:table-cell text-sm">
-                          {payment.client_app_id ? (
-                            <Badge variant="outline" className="font-mono bg-blue-50 border-blue-200 text-[10px]">
-                              {payment.client_app_id}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">N/A</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="hidden sm:table-cell text-sm">
-                          <div className="flex items-center gap-2">
-                            {getPlanIcon(payment.plan)}
-                            <span className="hidden xs:inline">{payment.plan || 'N/A'}</span>
-                          </div>
+                        <TableCell className="whitespace-nowrap text-sm">
+                          {new Date(`${getPaymentDate(payment)}T00:00:00`).toLocaleDateString()}
                         </TableCell>
                         <TableCell className="text-right font-mono text-sm font-medium">
                           UGX {(payment.total || 0).toLocaleString()}
                         </TableCell>
-                        <TableCell className="text-right font-mono text-sm text-red-600 hidden md:table-cell">
-                          UGX {(payment.discount || 0).toLocaleString()}
-                        </TableCell>
                         <TableCell className="text-right font-mono text-sm font-medium text-emerald-600 hidden lg:table-cell">
                           UGX {((payment.total || 0) - (payment.discount || 0)).toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-sm hidden xl:table-cell">
-                          <span className={payment.client_balance && payment.client_balance > 0 ? 'text-red-600' : 'text-emerald-600'}>
-                            UGX {(payment.client_balance || 0).toLocaleString()}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {getStatusBadge(payment.status)}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
@@ -639,6 +747,15 @@ export default function Payments() {
                               title="View"
                             >
                               <Eye className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditPayment(payment)}
+                              className="h-8 w-8 p-0"
+                              title="Edit payment"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
                             </Button>
                             <Button
                               variant="destructive"
@@ -669,18 +786,6 @@ export default function Payments() {
                             <span className="font-medium text-sm">
                               {payment.client_name || 'Unknown client'}
                             </span>
-                            {payment.client_app_id && (
-                              <Badge variant="outline" className="font-mono bg-blue-50 border-blue-200 text-[10px]">
-                                {payment.client_app_id}
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 mt-1 flex-wrap">
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              {getPlanIcon(payment.plan)}
-                              <span>{payment.plan || 'N/A'}</span>
-                            </div>
-                            {getStatusBadge(payment.status)}
                           </div>
                         </div>
                         <Button
@@ -703,21 +808,9 @@ export default function Payments() {
                           </span>
                         </div>
                         <div>
-                          <span className="text-muted-foreground">Discount:</span>
-                          <span className="ml-1 font-mono text-red-600">
-                            UGX {(payment.discount || 0).toLocaleString()}
-                          </span>
-                        </div>
-                        <div>
                           <span className="text-muted-foreground">Net:</span>
                           <span className="ml-1 font-mono text-emerald-600 font-medium">
                             UGX {((payment.total || 0) - (payment.discount || 0)).toLocaleString()}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Balance:</span>
-                          <span className={`ml-1 font-mono ${payment.client_balance && payment.client_balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                            UGX {(payment.client_balance || 0).toLocaleString()}
                           </span>
                         </div>
                       </div>
@@ -748,6 +841,15 @@ export default function Payments() {
                               Details
                             </Button>
                             <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditPayment(payment)}
+                              className="flex-1 h-8 text-xs"
+                            >
+                              <Pencil className="h-3 w-3 mr-1" />
+                              Edit
+                            </Button>
+                            <Button
                               variant="destructive"
                               size="sm"
                               onClick={() => handleDelete(payment.id)}
@@ -767,6 +869,98 @@ export default function Payments() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog
+        open={isEditDialogOpen}
+        onOpenChange={(open) => {
+          setIsEditDialogOpen(open);
+          if (!open) setEditingPayment(null);
+        }}
+      >
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Payment</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleUpdatePayment} className="space-y-4">
+            {error && (
+              <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+                {error}
+              </p>
+            )}
+            <div className="space-y-1.5">
+              <Label>Client</Label>
+              <Input value={editingPayment?.client_name || 'Unknown client'} readOnly />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-payment-amount">Amount (UGX)</Label>
+                <Input
+                  id="edit-payment-amount"
+                  type="number"
+                  min="1"
+                  required
+                  value={editPayment.amount}
+                  onChange={(e) => setEditPayment({ ...editPayment, amount: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-payment-date">Payment Date</Label>
+                <Input
+                  id="edit-payment-date"
+                  type="date"
+                  required
+                  value={editPayment.date}
+                  onChange={(e) => setEditPayment({ ...editPayment, date: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Payment Plan</Label>
+              <Select
+                value={editPayment.plan === 'Installments' ? 'Mobile Money' : editPayment.plan || 'Cash'}
+                onValueChange={(value) => setEditPayment({
+                  ...editPayment,
+                  plan: value,
+                  account_no: value === 'Bank' ? editPayment.account_no : ''
+                })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select plan" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Cash">Cash</SelectItem>
+                  <SelectItem value="Bank">Bank</SelectItem>
+                  <SelectItem value="Mobile Money">Mobile Money</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {editPayment.plan === 'Bank' && (
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-payment-account">Account Number</Label>
+                <Input
+                  id="edit-payment-account"
+                  value={editPayment.account_no}
+                  onChange={(e) => setEditPayment({ ...editPayment, account_no: e.target.value })}
+                />
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-payment-notes">Notes</Label>
+              <Input
+                id="edit-payment-notes"
+                value={editPayment.notes}
+                onChange={(e) => setEditPayment({ ...editPayment, notes: e.target.value })}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">Save Changes</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Payment Details Modal - Responsive */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
@@ -803,7 +997,7 @@ export default function Payments() {
                     <p className="text-xs sm:text-sm text-muted-foreground">Payment Plan</p>
                     <p className="text-xs sm:text-sm flex items-center gap-2">
                       {getPlanIcon(selectedPayment.plan)}
-                      {selectedPayment.plan || 'N/A'}
+                      {getPlanLabel(selectedPayment.plan)}
                     </p>
                   </div>
                 </div>

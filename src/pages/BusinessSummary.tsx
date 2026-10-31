@@ -21,11 +21,12 @@ import {
   Package,
   Target,
   UserCheck,
-  ShoppingBag
+  ShoppingBag,
+  AlertCircle
 } from "lucide-react";
 
 const SUMMARY_CACHE_KEY = "pearl:business-summary";
-const PACKAGE_CHART_COLORS = ["#5C0120", "#b45309", "#16a34a", "#2563eb", "#7c3aed", "#db2777"];
+const PACKAGE_CHART_COLORS = ["#5C0120", "#7D2945", "#9E526A", "#BF7B8F", "#D9AAB8", "#8A7B80"];
 
 interface ContributorBirthday {
   id: string;
@@ -522,14 +523,14 @@ export default function BusinessSummary() {
             </Badge>
           )}
           {item.additionalAmount > 0 && (
-            <Badge variant="default" className="text-[10px] h-5 bg-blue-500">
+            <Badge variant="outline" className="text-[10px] h-5">
               +UGX {item.additionalAmount.toLocaleString()}
             </Badge>
           )}
         </div>
       </div>
       <div className="text-right shrink-0">
-        <p className={`text-sm font-semibold ${item.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+        <p className={`text-sm font-semibold ${item.balance > 0 ? 'text-destructive' : 'text-primary'}`}>
           UGX {item.balance.toLocaleString()}
         </p>
         <p className="text-[10px] text-muted-foreground">Balance</p>
@@ -543,7 +544,7 @@ export default function BusinessSummary() {
         <span className="font-medium">{item.name}</span>
         <p className="text-xs text-muted-foreground">{item.packageName}</p>
       </div>
-      <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+      <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary">
         <CircleCheckBig className="h-3 w-3 mr-1" />
         Fully Paid
       </Badge>
@@ -562,7 +563,7 @@ export default function BusinessSummary() {
           }) : '—'}
         </p>
       </div>
-      <span className="font-semibold text-green-600 dark:text-green-400 shrink-0">
+      <span className="font-semibold text-primary shrink-0">
         +UGX {item.amount.toLocaleString()}
       </span>
     </div>
@@ -580,7 +581,7 @@ export default function BusinessSummary() {
           }) : '—'}
         </p>
       </div>
-      <span className="font-semibold text-red-600 dark:text-red-400 shrink-0">
+      <span className="font-semibold text-destructive shrink-0">
         -UGX {item.amount.toLocaleString()}
       </span>
     </div>
@@ -595,7 +596,7 @@ export default function BusinessSummary() {
         </p>
       </div>
       <div className="text-right shrink-0">
-        <p className="text-sm font-medium text-green-600 dark:text-green-400">
+        <p className="text-sm font-medium text-primary">
           UGX {item.paid.toLocaleString()}
         </p>
         <p className="text-xs text-muted-foreground">Paid</p>
@@ -740,13 +741,6 @@ export default function BusinessSummary() {
     };
   }, [selectedMonthKey, stats.incomeList, stats.expenditureList]);
 
-  const bookingStatusData = [
-    { name: "Pending", value: stats.bookingsPending, fill: "#d97706" },
-    { name: "Confirmed", value: stats.bookingsConfirmed, fill: "#5C0120" },
-    { name: "Completed", value: stats.bookingsCompleted, fill: "#16a34a" },
-    { name: "Cancelled", value: stats.bookingsCancelled, fill: "#dc2626" },
-  ].filter((status) => status.value > 0);
-
   useEffect(() => {
     if (selectedMonthKey) {
       setSelectedMonthTab("income");
@@ -769,13 +763,13 @@ export default function BusinessSummary() {
   if (error) {
     return (
       <AdminLayout title="Business Summary" description="Overall business performance at a glance">
-        <Card className="border-red-200 bg-red-50 dark:bg-red-900/10 dark:border-red-800">
-          <CardContent className="py-6 text-center text-red-600 dark:text-red-400">
-            <div className="text-4xl mb-3">⚠️</div>
+        <Card className="border-destructive/20 bg-destructive/5">
+          <CardContent className="py-6 text-center text-destructive">
+            <div className="mb-3 flex justify-center"><AlertCircle className="h-8 w-8" /></div>
             {error}
             <button
               onClick={fetchStats}
-              className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-red-100 dark:bg-red-900/30 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition"
+              className="mt-4 inline-flex items-center gap-2 rounded-md border border-destructive/20 bg-background px-4 py-2 text-sm font-medium hover:bg-destructive/5 transition"
             >
               Try Again
             </button>
@@ -787,30 +781,39 @@ export default function BusinessSummary() {
 
   return (
     <AdminLayout title="Business Summary" description="Overall business performance at a glance">
-      <div className="flex flex-col">
-      <>
-        {/* Header with refresh */}
-        <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
-          <div className="flex items-center gap-3">
-            <div className="h-1 w-12 bg-primary rounded-full" />
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-              Key Metrics
-            </h2>
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-8">
+        <section className="rounded-2xl border border-primary/10 bg-gradient-to-r from-primary/10 via-card to-card px-5 py-5 shadow-sm sm:px-7 sm:py-6">
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+            <div className="max-w-2xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Pearl Hijja workspace</p>
+              <h2 className="mt-2 text-2xl font-semibold text-foreground sm:text-3xl">Your operations, in clear view</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Clients, pilgrimage bookings, collections, and package progress brought together in one place.
+              </p>
+            </div>
+            {lastUpdated && (
+              <p className="text-xs text-muted-foreground">
+                Updated {lastUpdated.toLocaleTimeString('en-UG', { hour: 'numeric', minute: '2-digit' })}
+              </p>
+            )}
           </div>
-          {lastUpdated && (
-            <span className="text-xs text-muted-foreground">
-              Last updated: {lastUpdated.toLocaleTimeString()}
-            </span>
-          )}
-        </div>
+        </section>
 
-        {/* Key Metrics Section */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-3 sm:gap-4 mb-6">
+        <section className="order-1">
+          <div className="mb-4 flex items-center gap-3">
+            <span className="h-7 w-1 rounded-full bg-primary" />
+            <div>
+              <h3 className="text-base font-semibold text-foreground">Key metrics</h3>
+              <p className="text-xs text-muted-foreground">Client progress and payment completion</p>
+            </div>
+          </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <StatCard
             title="Total Clients"
             value={stats.clients}
             icon={<Users className="h-5 w-5" />}
             color="primary"
+            className="border border-border bg-card shadow-sm"
             details={stats.clientsList}
             detailTitle="All Clients"
             renderDetail={renderClientDetail}
@@ -822,6 +825,7 @@ export default function BusinessSummary() {
             value={stats.fullyPaidClients}
             icon={<CircleCheckBig className="h-5 w-5" />}
             color="primary"
+            className="border border-border bg-card shadow-sm"
             hint={`${stats.clients > 0 ? Math.round((stats.fullyPaidClients / stats.clients) * 100) : 0}% of clients`}
             details={stats.fullyPaidClientsList}
             detailTitle="Fully Paid Clients"
@@ -829,13 +833,21 @@ export default function BusinessSummary() {
             viewButtonText="View"
           />
         </div>
-      </>
+        </section>
 
-      <div className="order-last mb-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <Card className="border border-primary/15 bg-gradient-to-br from-[#5C0120]/5 via-white to-[#5C0120]/5 shadow-sm shadow-primary/10 dark:from-[#5C0120]/10 dark:via-background dark:to-[#5C0120]/10">
-          <CardHeader className="pb-2">
+      <section className="order-4">
+        <div className="mb-4 flex items-center gap-3">
+          <span className="h-7 w-1 rounded-full bg-primary" />
+          <div>
+            <h3 className="text-base font-semibold text-foreground">Business activity</h3>
+            <p className="text-xs text-muted-foreground">Monthly finances and client distribution across packages</p>
+          </div>
+        </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card className="border-border bg-card shadow-sm">
+          <CardHeader className="border-b border-border/70 pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
-              <span className="h-2.5 w-2.5 rounded-full bg-primary" />
+              <span className="h-2 w-2 rounded-full bg-primary" />
               Financial activity by month
             </CardTitle>
           </CardHeader>
@@ -843,7 +855,7 @@ export default function BusinessSummary() {
             <ChartContainer
               config={{
                 income: { label: "Income", color: "#5C0120" },
-                expenditure: { label: "Expenditure", color: "#d97706" }
+                expenditure: { label: "Expenditure", color: "#9E526A" }
               }}
               className="w-full min-h-[260px] sm:min-h-[300px]"
             >
@@ -865,12 +877,12 @@ export default function BusinessSummary() {
                   content={<ChartTooltipContent formatter={(value) => [formatCompactCurrency(Number(value)), "Amount"]} />}
                 />
                 <Bar dataKey="income" radius={[6, 6, 0, 0]} fill="#5C0120" />
-                <Bar dataKey="expenditure" radius={[6, 6, 0, 0]} fill="#d97706" />
+                <Bar dataKey="expenditure" radius={[6, 6, 0, 0]} fill="#9E526A" />
               </BarChart>
             </ChartContainer>
             <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
               <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#5C0120]" />Income</div>
-              <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#d97706]" />Expenditure</div>
+              <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#9E526A]" />Expenditure</div>
             </div>
             {selectedMonthEntries ? (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => {
@@ -920,10 +932,10 @@ export default function BusinessSummary() {
                       selectedMonthEntries.incomeEntries.length > 0 ? (
                         <div className="space-y-2">
                           {selectedMonthEntries.incomeEntries.map((entry) => (
-                            <div key={entry.id} className="rounded-md border bg-white/70 p-2 text-xs dark:bg-gray-950/30">
+                            <div key={entry.id} className="rounded-md border border-border bg-background p-2 text-xs">
                               <div className="flex items-center justify-between gap-2">
                                 <span className="font-medium text-foreground truncate">{entry.description}</span>
-                                <span className="shrink-0 font-semibold text-green-600">+UGX {Number(entry.amount || 0).toLocaleString()}</span>
+                                <span className="shrink-0 font-semibold text-primary">+UGX {Number(entry.amount || 0).toLocaleString()}</span>
                               </div>
                               <p className="mt-1 text-[10px] text-muted-foreground">
                                 {entry.date ? new Date(entry.date).toLocaleDateString('en-UG', {
@@ -941,10 +953,10 @@ export default function BusinessSummary() {
                     ) : selectedMonthEntries.expenditureEntries.length > 0 ? (
                       <div className="space-y-2">
                         {selectedMonthEntries.expenditureEntries.map((entry) => (
-                          <div key={entry.id} className="rounded-md border bg-white/70 p-2 text-xs dark:bg-gray-950/30">
+                          <div key={entry.id} className="rounded-md border border-border bg-background p-2 text-xs">
                             <div className="flex items-center justify-between gap-2">
                               <span className="font-medium text-foreground truncate">{entry.description}</span>
-                              <span className="shrink-0 font-semibold text-red-600">-UGX {Number(entry.amount || 0).toLocaleString()}</span>
+                              <span className="shrink-0 font-semibold text-destructive">-UGX {Number(entry.amount || 0).toLocaleString()}</span>
                             </div>
                             <p className="mt-1 text-[10px] text-muted-foreground">
                               {entry.date ? new Date(entry.date).toLocaleDateString('en-UG', {
@@ -973,106 +985,10 @@ export default function BusinessSummary() {
           </CardContent>
         </Card>
 
-        <Card className="border border-primary/15 bg-gradient-to-br from-[#5C0120]/5 via-white to-[#5C0120]/5 shadow-sm shadow-primary/10 dark:from-[#5C0120]/10 dark:via-background dark:to-[#5C0120]/10">
-          <CardHeader className="pb-2">
+        <Card className="border-border bg-card shadow-sm">
+          <CardHeader className="border-b border-border/70 pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
-              <span className="h-2.5 w-2.5 rounded-full bg-primary/80" />
-              Bookings pipeline
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <ChartContainer
-              config={{
-                pending: { label: "Pending", color: "#d97706" },
-                confirmed: { label: "Confirmed", color: "#5C0120" },
-                completed: { label: "Completed", color: "#16a34a" },
-                cancelled: { label: "Cancelled", color: "#dc2626" }
-              }}
-              className="w-full min-h-[260px] sm:min-h-[300px]"
-            >
-              <PieChart>
-                <ChartTooltip
-                  content={<ChartTooltipContent formatter={(value, name) => [Number(value).toLocaleString(), String(name)]} />}
-                />
-                <Pie
-                  data={bookingStatusData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={100}
-                >
-                  {bookingStatusData.map((status) => (
-                    <Cell key={status.name} fill={status.fill} />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ChartContainer>
-            <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
-              <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#d97706]" />Pending</div>
-              <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#5C0120]" />Confirmed</div>
-              <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#16a34a]" />Completed</div>
-              <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#dc2626]" />Cancelled</div>
-            </div>
-            <p className="mt-3 text-xs text-muted-foreground">
-              {stats.bookings > 0 ? `${Math.round((stats.bookingsConfirmed / stats.bookings) * 100)}% of bookings are confirmed and progressing.` : "No bookings recorded yet."}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-primary/15 bg-gradient-to-br from-[#5C0120]/5 via-white to-[#5C0120]/5 shadow-sm shadow-primary/10 dark:from-[#5C0120]/10 dark:via-background dark:to-[#5C0120]/10">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <span className="h-2.5 w-2.5 rounded-full bg-primary/90" />
-              Package performance
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            {stats.packageSummaries.length > 0 ? (
-              <>
-                <ChartContainer
-                  config={{
-                    totalToPay: { label: "Target", color: "#5C0120" },
-                    totalPaid: { label: "Collected", color: "#b45309" }
-                  }}
-                  className="w-full min-h-[260px] sm:min-h-[300px]"
-                >
-                  <BarChart
-                    data={stats.packageSummaries.slice(0, 5)}
-                    margin={{ top: 10, right: 12, left: 0, bottom: 20 }}
-                    barSize={18}
-                  >
-                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                    <XAxis dataKey="name" tickLine={false} axisLine={false} angle={-20} textAnchor="end" height={48} />
-                    <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => formatCompactCurrency(Number(value))} />
-                    <ChartTooltip
-                      cursor={{ fill: "rgba(92, 1, 32, 0.06)" }}
-                      content={<ChartTooltipContent formatter={(value) => [formatCompactCurrency(Number(value)), "Amount"]} />}
-                    />
-                    <Bar dataKey="totalToPay" radius={[6, 6, 0, 0]} fill="#5C0120" />
-                    <Bar dataKey="totalPaid" radius={[6, 6, 0, 0]} fill="#b45309" />
-                  </BarChart>
-                </ChartContainer>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
-                  <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#5C0120]" />Target</div>
-                  <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-sm bg-[#b45309]" />Collected</div>
-                </div>
-                <p className="mt-3 text-xs text-muted-foreground">
-                  {stats.packageSummaries[0] ? `${stats.packageSummaries[0].name} leads current package performance.` : "Package data is being updated."}
-                </p>
-              </>
-            ) : (
-              <div className="flex h-[220px] items-center justify-center text-sm text-muted-foreground">
-                No package performance data available yet.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border border-primary/15 bg-gradient-to-br from-[#5C0120]/5 via-white to-[#5C0120]/5 shadow-sm shadow-primary/10 dark:from-[#5C0120]/10 dark:via-background dark:to-[#5C0120]/10">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <span className="h-2.5 w-2.5 rounded-full bg-primary/70" />
+              <span className="h-2 w-2 rounded-full bg-primary/60" />
               Clients by package
             </CardTitle>
           </CardHeader>
@@ -1127,16 +1043,18 @@ export default function BusinessSummary() {
           </CardContent>
         </Card>
       </div>
+      </section>
 
       {canViewDetailedBusinessSummary && (
         <>
           {/* Financial Section */}
-          <div className="mb-6">
+          <section className="order-2">
             <div className="flex items-center gap-3 mb-4">
-              <div className="h-1 w-12 bg-primary rounded-full" />
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-                Financial Overview
-              </h2>
+              <span className="h-7 w-1 rounded-full bg-primary" />
+              <div>
+                <h3 className="text-base font-semibold text-foreground">Financial overview</h3>
+                <p className="text-xs text-muted-foreground">Income, expenditure, and net position</p>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
@@ -1144,9 +1062,10 @@ export default function BusinessSummary() {
                 title="Total Income"
                 value={stats.income}
                 icon={<ArrowUpCircle className="h-5 w-5" />}
-                color="green"
+                color="primary"
                 valuePrefix="UGX "
-                valueClass="text-green-600 dark:text-green-400"
+                valueClass="text-primary"
+                className="border border-border bg-card shadow-sm"
                 details={stats.incomeList}
                 detailTitle="Income Transactions"
                 renderDetail={renderIncomeDetail}
@@ -1166,9 +1085,10 @@ export default function BusinessSummary() {
                 title="Total Expenditure"
                 value={stats.expenditure}
                 icon={<ArrowDownCircle className="h-5 w-5" />}
-                color="rose"
+                color="primary"
                 valuePrefix="UGX "
-                valueClass="text-red-600 dark:text-red-400"
+                valueClass="text-destructive"
+                className="border border-border bg-card shadow-sm"
                 details={stats.expenditureList}
                 detailTitle="Expenditure Transactions"
                 renderDetail={renderExpenditureDetail}
@@ -1188,27 +1108,29 @@ export default function BusinessSummary() {
                 title="Net"
                 value={stats.net}
                 icon={<TrendingUp className="h-5 w-5" />}
-                color={stats.net >= 0 ? "green" : "rose"}
+                color="primary"
                 valuePrefix="UGX "
-                valueClass={stats.net >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}
+                valueClass={stats.net >= 0 ? "text-primary" : "text-destructive"}
+                className="border border-border bg-card shadow-sm"
                 details={[]}
                 detailTitle="Net Summary"
                 viewButtonText="View"
               />
             </div>
-          </div>
+          </section>
         </>
       )}
 
       {canViewDetailedBusinessSummary && (
         <>
           {/* Contributions Section */}
-          <div className="mb-6">
+          <section className="order-3">
             <div className="flex items-center gap-3 mb-4">
-              <div className="h-1 w-12 bg-primary rounded-full" />
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-                Contributions
-              </h2>
+              <span className="h-7 w-1 rounded-full bg-primary" />
+              <div>
+                <h3 className="text-base font-semibold text-foreground">Contributions</h3>
+                <p className="text-xs text-muted-foreground">Collected funds and remaining balance</p>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
@@ -1218,14 +1140,16 @@ export default function BusinessSummary() {
                 icon={<Star className="h-5 w-5" />}
                 color="primary"
                 valuePrefix="UGX "
+                className="border border-border bg-card shadow-sm"
               />
 
               <StatCard
                 title="Contributions Paid"
                 value={stats.contributionsPaid}
                 icon={<Wallet className="h-5 w-5" />}
-                color="green"
+                color="primary"
                 valuePrefix="UGX "
+                className="border border-border bg-card shadow-sm"
                 details={stats.contributionsPaidList}
                 detailTitle="Contributions Paid"
                 renderDetail={renderContributionDetail}
@@ -1236,27 +1160,29 @@ export default function BusinessSummary() {
                 title="Contributions Balance"
                 value={stats.contributionsBalance}
                 icon={<Target className="h-5 w-5" />}
-                color={stats.contributionsBalance > 0 ? "red" : "green"}
+                color="primary"
                 valuePrefix="UGX "
-                valueClass={stats.contributionsBalance > 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}
+                valueClass={stats.contributionsBalance > 0 ? "text-destructive" : "text-primary"}
+                className="border border-border bg-card shadow-sm"
               />
             </div>
-          </div>
+          </section>
         </>
       )}
 
       {canViewDetailedBusinessSummary && (
         <>
           {/* Package Summary Section */}
-          <div>
+          <section className="order-5">
             <div className="flex items-center gap-3 mb-4">
-              <div className="h-1 w-12 bg-primary rounded-full" />
-              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-                Package Performance
-              </h2>
+              <span className="h-7 w-1 rounded-full bg-primary" />
+              <div>
+                <h3 className="text-base font-semibold text-foreground">Package performance</h3>
+                <p className="text-xs text-muted-foreground">Progress, pricing, and collections by package</p>
+              </div>
             </div>
 
-            <Card className="border border-primary/10 bg-gradient-to-br from-[#5C0120]/5 via-white to-[#f7f0f3] shadow-sm shadow-primary/10 dark:from-[#5C0120]/10 dark:via-background dark:to-[#5C0120]/5">
+            <Card className="border-border bg-card shadow-sm">
               <CardContent className="p-4 sm:p-6">
                 {stats.packageSummaries.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -1274,7 +1200,7 @@ export default function BusinessSummary() {
                       return (
                         <div
                           key={index}
-                          className="group w-full rounded-2xl border border-primary/10 bg-white p-4 text-left shadow-[0_10px_30px_-18px_rgba(92,1,32,0.4)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_38px_-20px_rgba(92,1,32,0.45)] dark:bg-[#111111]"
+                          className="group w-full rounded-xl border border-border bg-background p-4 text-left shadow-sm transition-all duration-200 hover:border-primary/20 hover:shadow-md"
                         >
                           <div className="mb-4 flex items-start justify-between gap-3">
                             <div className="min-w-0">
@@ -1293,10 +1219,8 @@ export default function BusinessSummary() {
                               variant="outline"
                               className={
                                 percentagePaid >= 100
-                                  ? "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400"
-                                  : percentagePaid >= 70
-                                  ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400"
-                                  : "border-primary/20 bg-primary/5 text-primary"
+                                  ? "border-primary/20 bg-primary/5 text-primary"
+                                  : "border-border bg-muted text-muted-foreground"
                               }
                             >
                               {percentagePaid >= 100 ? (
@@ -1317,11 +1241,11 @@ export default function BusinessSummary() {
                           <div className="grid grid-cols-2 gap-2 text-sm">
                             <div className="rounded-lg border border-border bg-muted/30 p-2.5">
                               <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Paid</p>
-                              <p className="mt-1 font-semibold text-green-600 dark:text-green-400">UGX {item.totalPaid.toLocaleString()}</p>
+                              <p className="mt-1 font-semibold text-primary">UGX {item.totalPaid.toLocaleString()}</p>
                             </div>
                             <div className="rounded-lg border border-border bg-muted/30 p-2.5">
                               <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Balance</p>
-                              <p className="mt-1 font-semibold text-red-600 dark:text-red-400">UGX {balanceDue.toLocaleString()}</p>
+                              <p className="mt-1 font-semibold text-destructive">UGX {balanceDue.toLocaleString()}</p>
                             </div>
                           </div>
 
@@ -1329,7 +1253,7 @@ export default function BusinessSummary() {
                             {hasDiscount && (
                               <div className="flex justify-between text-sm">
                                 <span className="text-muted-foreground">Discounts</span>
-                                <span className="font-medium text-red-600 dark:text-red-400">
+                                <span className="font-medium text-destructive">
                                   -UGX {item.discountAmount.toLocaleString()}
                                 </span>
                               </div>
@@ -1338,7 +1262,7 @@ export default function BusinessSummary() {
                             {hasAdditional && (
                               <div className="flex justify-between text-sm">
                                 <span className="text-muted-foreground">Extras</span>
-                                <span className="font-medium text-blue-600 dark:text-blue-400">
+                                <span className="font-medium text-primary">
                                   +UGX {item.additionalAmount.toLocaleString()}
                                 </span>
                               </div>
@@ -1352,13 +1276,7 @@ export default function BusinessSummary() {
                             </div>
                             <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
                               <div
-                                className={`h-full rounded-full transition-all duration-500 ${
-                                  percentagePaid >= 100
-                                    ? "bg-green-500"
-                                    : percentagePaid >= 70
-                                    ? "bg-amber-500"
-                                    : "bg-primary"
-                                }`}
+                                className="h-full rounded-full bg-primary transition-all duration-500"
                                 style={{ width: `${Math.min(percentagePaid, 100)}%` }}
                               />
                             </div>
@@ -1370,7 +1288,7 @@ export default function BusinessSummary() {
                 )}
               </CardContent>
             </Card>
-          </div>
+          </section>
         </>
       )}
 
@@ -1394,14 +1312,14 @@ export default function BusinessSummary() {
               {selectedPackageClients.length > 0 ? (
                 <div className="space-y-2">
                   {selectedPackageClients.map((client) => (
-                    <div key={client.clientName} className="rounded-md border bg-white/70 p-3 text-sm dark:bg-gray-950/30">
+                    <div key={client.clientName} className="rounded-md border border-border bg-background p-3 text-sm">
                       <div className="flex items-center justify-between gap-3">
                         <p className="font-medium text-foreground">{client.clientName}</p>
-                        <span className="font-semibold text-green-600 dark:text-green-400">
+                        <span className="font-semibold text-primary">
                           Paid: UGX {client.paid.toLocaleString()}
                         </span>
                       </div>
-                      <p className={`mt-1 text-xs ${client.balance > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                      <p className={`mt-1 text-xs ${client.balance > 0 ? 'text-destructive' : 'text-primary'}`}>
                         Balance: UGX {client.balance.toLocaleString()}
                       </p>
                     </div>

@@ -51,14 +51,14 @@ export default function FaqSection() {
   };
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle>FAQs</CardTitle>
-        <Button size="sm" onClick={() => setEditing({})}><Plus className="h-4 w-4 mr-1" /> Add FAQ</Button>
+    <Card className="overflow-hidden rounded-2xl border-border bg-card shadow-sm">
+      <CardHeader className="flex flex-row items-center justify-between gap-3 border-b border-border/70 px-4 py-4 sm:px-6">
+        <CardTitle className="text-base font-semibold">FAQs</CardTitle>
+        <Button size="sm" className="rounded-lg" onClick={() => setEditing({})}><Plus className="mr-1 h-4 w-4" /> Add FAQ</Button>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-5 p-4 sm:p-6">
         {editing && (
-          <div className="rounded-md border border-border p-4 space-y-4 bg-muted/30">
+          <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-4 sm:p-5">
             <div className="flex items-center justify-between">
               <h4 className="font-semibold">{editing.id ? "Edit FAQ" : "New FAQ"}</h4>
               <Button variant="ghost" size="sm" onClick={() => setEditing(null)}><X className="h-4 w-4" /></Button>
@@ -72,7 +72,7 @@ export default function FaqSection() {
         <div className="space-y-2">
           {rows.length === 0 && !editing && <p className="text-muted-foreground text-sm">No FAQs yet.</p>}
           {rows.map(f => (
-            <div key={f.id} className="rounded-md border border-border p-3 flex items-start gap-3 bg-card">
+            <div key={f.id} className="flex items-start gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/20 hover:bg-muted/20">
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <p className="font-medium text-sm">{f.question}</p>

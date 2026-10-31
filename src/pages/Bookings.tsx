@@ -227,17 +227,17 @@ export default function Bookings() {
   };
 
   const getStatusConfig = (status: string | null) => {
-    if (!status) return { color: 'text-gray-600', bg: 'bg-gray-100', icon: AlertCircle, label: 'Unknown' };
+    if (!status) return { color: 'text-muted-foreground', bg: 'bg-muted', icon: AlertCircle, label: 'Unknown' };
     
     const configs: Record<string, any> = {
-      'confirmed': { color: 'text-green-700', bg: 'bg-green-50', icon: CheckCircle, label: 'Confirmed' },
-      'pending': { color: 'text-amber-700', bg: 'bg-amber-50', icon: Clock, label: 'Pending' },
-      'cancelled': { color: 'text-red-700', bg: 'bg-red-50', icon: XCircle, label: 'Cancelled' },
-      'completed': { color: 'text-blue-700', bg: 'bg-blue-50', icon: CheckCircle, label: 'Completed' }
+      'confirmed': { color: 'text-primary', bg: 'bg-primary/10', icon: CheckCircle, label: 'Confirmed' },
+      'pending': { color: 'text-foreground', bg: 'bg-muted', icon: Clock, label: 'Pending' },
+      'cancelled': { color: 'text-destructive', bg: 'bg-destructive/10', icon: XCircle, label: 'Cancelled' },
+      'completed': { color: 'text-primary', bg: 'bg-primary/10', icon: CheckCircle, label: 'Completed' }
     };
     
     const matched = configs[status.toLowerCase()];
-    return matched || { color: 'text-gray-600', bg: 'bg-gray-100', icon: AlertCircle, label: status };
+    return matched || { color: 'text-muted-foreground', bg: 'bg-muted', icon: AlertCircle, label: status };
   };
 
   const formatDate = (dateStr: string) => {
@@ -255,13 +255,10 @@ export default function Bookings() {
   const formatCurrency = (amount: number | string) => {
     const num = typeof amount === 'string' ? parseFloat(amount) : amount;
     if (isNaN(num)) return 'N/A';
-    
-    if (num >= 1000000) {
-      return `UGX ${(num / 1000000).toFixed(1)}M`;
-    } else if (num >= 1000) {
-      return `UGX ${(num / 1000).toFixed(1)}K`;
-    }
-    return `UGX ${num.toFixed(0)}`;
+    return `UGX ${new Intl.NumberFormat('en', {
+      notation: 'compact',
+      maximumFractionDigits: 1
+    }).format(num)}`;
   };
 
   const getStatusCount = (status: string) => {
@@ -288,8 +285,8 @@ export default function Bookings() {
         <Card>
           <CardContent className="py-12">
             <div className="text-center">
-              <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-              <p className="text-red-500 font-semibold mb-2">{error}</p>
+              <AlertCircle className="mx-auto mb-4 h-12 w-12 text-destructive" />
+              <p className="mb-2 font-semibold text-destructive">{error}</p>
               <p className="text-sm text-muted-foreground mb-4">Please try again or contact support</p>
               <Button onClick={loadData} className="gap-2">
                 <RefreshCw className="h-4 w-4" />
@@ -304,62 +301,63 @@ export default function Bookings() {
 
   return (
     <ProtectedPage title="Bookings" description="Client booking details and installment payment tracking">
+      <div className="mx-auto w-full max-w-[1600px] space-y-6">
       {/* Statistics Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-        <Card className="border-0 shadow-sm bg-white">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5">
+        <Card className="rounded-2xl border-border bg-card shadow-sm">
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total Bookings</p>
-            <p className="text-2xl font-semibold text-gray-900 mt-1">{bookings.length}</p>
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Total Bookings</p>
+            <p className="mt-1 text-2xl font-semibold text-foreground">{bookings.length}</p>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm bg-white">
+        <Card className="rounded-2xl border-border bg-card shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Pending</p>
-                <p className="text-2xl font-semibold text-amber-600 mt-1">{getStatusCount('pending')}</p>
+                <p className="mt-1 text-2xl font-semibold text-foreground">{getStatusCount('pending')}</p>
               </div>
-              <Clock className="h-5 w-5 text-amber-500" />
+              <Clock className="h-5 w-5 text-muted-foreground" />
             </div>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm bg-white">
+        <Card className="rounded-2xl border-border bg-card shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Confirmed</p>
-                <p className="text-2xl font-semibold text-green-600 mt-1">{getStatusCount('confirmed')}</p>
+                <p className="mt-1 text-2xl font-semibold text-primary">{getStatusCount('confirmed')}</p>
               </div>
-              <CheckCircle className="h-5 w-5 text-green-500" />
+              <CheckCircle className="h-5 w-5 text-primary" />
             </div>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm bg-white">
+        <Card className="rounded-2xl border-border bg-card shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Completed</p>
-                <p className="text-2xl font-semibold text-blue-600 mt-1">{getStatusCount('completed')}</p>
+                <p className="mt-1 text-2xl font-semibold text-primary">{getStatusCount('completed')}</p>
               </div>
-              <TrendingUp className="h-5 w-5 text-blue-500" />
+              <TrendingUp className="h-5 w-5 text-primary" />
             </div>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm bg-white">
+        <Card className="rounded-2xl border-border bg-card shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Cancelled</p>
-                <p className="text-2xl font-semibold text-red-600 mt-1">{getStatusCount('cancelled')}</p>
+                <p className="mt-1 text-2xl font-semibold text-destructive">{getStatusCount('cancelled')}</p>
               </div>
-              <TrendingDown className="h-5 w-5 text-red-500" />
+              <TrendingDown className="h-5 w-5 text-destructive" />
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2 mb-6">
+      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card p-3 shadow-sm sm:p-4">
         <div className="flex items-center gap-2 mr-2">
           <Package className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-medium text-muted-foreground">Filter by Status:</span>
@@ -368,7 +366,7 @@ export default function Bookings() {
           size="sm"
           variant={statusFilter === 'all' ? 'default' : 'ghost'}
           onClick={() => setStatusFilter('all')}
-          className="text-xs"
+          className="rounded-lg text-xs"
         >
           All ({bookings.length})
         </Button>
@@ -380,7 +378,7 @@ export default function Bookings() {
               size="sm"
               variant={statusFilter === status ? 'default' : 'ghost'}
               onClick={() => setStatusFilter(status)}
-              className="text-xs capitalize"
+              className="rounded-lg text-xs capitalize"
             >
               {status} ({count})
             </Button>
@@ -389,12 +387,12 @@ export default function Bookings() {
       </div>
 
       {/* Bookings Grid */}
-      <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {filteredBookings.length === 0 ? (
           <div className="col-span-full py-12 text-center">
             <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-30" />
             <p className="text-muted-foreground font-medium">No bookings found</p>
-            <p className="text-sm text-muted-foreground">Try adjusting your filters</p>
+            <p className="text-sm text-muted-foreground">There are no bookings in this status.</p>
           </div>
         ) : (
           filteredBookings.map((booking) => {
@@ -410,7 +408,7 @@ export default function Bookings() {
             return (
               <Card 
                 key={booking.id} 
-                className="border-0 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden bg-white flex flex-col"
+                className="flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-shadow duration-200 hover:shadow-md"
               >
                 <div className="p-4 sm:p-5 flex flex-col h-full">
                   {/* Header - Client Info */}
@@ -421,7 +419,7 @@ export default function Bookings() {
                           <User className="h-4 w-4 text-primary" />
                         </div>
                         <div className="min-w-0">
-                          <p className="font-medium text-gray-900 truncate text-sm">
+                          <p className="truncate text-sm font-medium text-foreground">
                             {booking.client_name || booking.first_name || 'Unknown Client'}
                           </p>
                           {booking.email && (
@@ -443,7 +441,7 @@ export default function Bookings() {
                   <div className="grid grid-cols-2 gap-x-3 gap-y-2 mb-3 flex-1">
                     <div className="flex items-center gap-1.5 col-span-2">
                       <Package className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                      <span className="text-xs font-medium text-gray-700">Package:</span>
+                      <span className="text-xs font-medium text-foreground">Package:</span>
                       <span className="text-muted-foreground text-xs truncate">
                         {booking.package_name}
                       </span>
@@ -456,13 +454,13 @@ export default function Bookings() {
                     
                     <div className="flex items-center gap-1.5">
                       <Users className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                      <span className="text-xs font-medium text-gray-700">Travelers:</span>
+                      <span className="text-xs font-medium text-foreground">Travelers:</span>
                       <span className="text-muted-foreground text-xs">{booking.travelers_no || '1'}</span>
                     </div>
 
                     <div className="flex items-center gap-1.5">
                       <DollarSign className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                      <span className="text-xs font-medium text-gray-700">Total:</span>
+                      <span className="text-xs font-medium text-foreground">Total:</span>
                       <span className="text-muted-foreground text-xs font-medium truncate">
                         {formatCurrency(booking.total_amount)}
                       </span>
@@ -470,22 +468,22 @@ export default function Bookings() {
 
                     <div className="flex items-center gap-1.5 col-span-2">
                       <Calendar className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                      <span className="text-xs font-medium text-gray-700">Date:</span>
+                      <span className="text-xs font-medium text-foreground">Date:</span>
                       <span className="text-muted-foreground text-xs">
                         {formatDate(booking.created_at)}
                       </span>
                     </div>
 
                     {hasPhone && (
-                      <div className="flex items-center gap-1.5 col-span-2 bg-gray-50 rounded px-2 py-1 group">
-                        <Phone className="h-3.5 w-3.5 text-gray-500 flex-shrink-0" />
-                        <span className="text-xs font-medium text-gray-700">Phone:</span>
-                        <span className="text-gray-700 text-xs font-mono truncate flex-1">{booking.phone}</span>
+                      <div className="group col-span-2 flex items-center gap-1.5 rounded-lg border border-border/70 bg-muted/40 px-2 py-1">
+                        <Phone className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                        <span className="text-xs font-medium text-foreground">Phone:</span>
+                        <span className="flex-1 truncate font-mono text-xs text-foreground">{booking.phone}</span>
                         <button
                           onClick={() => copyToClipboard(booking.phone || '', 'Phone number')}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-gray-200 rounded"
+                          className="rounded p-0.5 opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100"
                         >
-                          <Copy className="h-3.5 w-3.5 text-gray-500" />
+                          <Copy className="h-3.5 w-3.5 text-muted-foreground" />
                         </button>
                       </div>
                     )}
@@ -493,19 +491,19 @@ export default function Bookings() {
                     {hasNationalId && (
                       <div className="flex items-center gap-1.5 col-span-2">
                         <Hash className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                        <span className="text-xs font-medium text-gray-700">National ID:</span>
+                        <span className="text-xs font-medium text-foreground">National ID:</span>
                         <span className="text-muted-foreground text-xs font-mono truncate">{booking.national_id}</span>
                       </div>
                     )}
 
                     <div className="flex items-center gap-1.5 col-span-2">
                       <CreditCard className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                      <span className="text-xs font-medium text-gray-700">Payment:</span>
+                      <span className="text-xs font-medium text-foreground">Payment:</span>
                       <span className="text-muted-foreground text-xs capitalize">
                         {paymentMethod}
                       </span>
                       {isInstallment && (
-                        <span className="ml-1 text-[10px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded-full">
+                        <span className="ml-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
                           Installment
                         </span>
                       )}
@@ -514,13 +512,13 @@ export default function Bookings() {
 
                   {/* Notes */}
                   {hasNotes && (
-                    <div className="border-t border-gray-100 pt-2 mb-2">
+                    <div className="mb-2 border-t border-border pt-2">
                       <button
                         onClick={() => setExpandedBooking(isExpanded ? null : booking.id)}
                         className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1 w-full"
                       >
                         <FileText className="h-3.5 w-3.5 flex-shrink-0" />
-                        <span className="text-xs font-medium text-gray-700">Notes:</span>
+                        <span className="text-xs font-medium text-foreground">Notes:</span>
                         <span className="text-muted-foreground flex-1 text-left truncate">
                           {isExpanded ? booking.notes : `${(booking.notes || '').substring(0, 50)}${(booking.notes || '').length > 50 ? '...' : ''}`}
                         </span>
@@ -531,7 +529,7 @@ export default function Bookings() {
                         )}
                       </button>
                       {isExpanded && (
-                        <div className="mt-2 p-2.5 bg-gray-50 rounded-md text-xs text-gray-600 break-words">
+                        <div className="mt-2 break-words rounded-lg border border-border/70 bg-muted/40 p-2.5 text-xs text-muted-foreground">
                           {booking.notes}
                         </div>
                       )}
@@ -539,12 +537,12 @@ export default function Bookings() {
                   )}
 
                   {/* Actions - 2x2 Grid */}
-                  <div className="grid grid-cols-2 gap-1.5 pt-2 border-t border-gray-100 mt-auto">
+                  <div className="mt-auto grid grid-cols-2 gap-1.5 border-t border-border pt-2">
                     <Button
                       size="sm"
                       onClick={() => handleApproveBooking(booking)}
                       disabled={booking.booking_status?.toLowerCase() === 'confirmed'}
-                      className="h-7 text-xs bg-primary hover:bg-primary/90 text-white"
+                      className="h-7 bg-primary text-xs text-primary-foreground hover:bg-primary/90"
                     >
                       <CheckCircle className="h-3 w-3 mr-1" />
                       Approve
@@ -554,7 +552,7 @@ export default function Bookings() {
                       variant="outline"
                       onClick={() => updateBookingStatus(booking.id, 'pending')}
                       disabled={booking.booking_status?.toLowerCase() === 'pending'}
-                      className="h-7 text-xs border-gray-300 hover:bg-gray-50"
+                      className="h-7 border-border text-xs hover:bg-muted"
                     >
                       <Clock className="h-3 w-3 mr-1" />
                       Pending
@@ -564,7 +562,7 @@ export default function Bookings() {
                       variant="outline"
                       onClick={() => updateBookingStatus(booking.id, 'cancelled')}
                       disabled={booking.booking_status?.toLowerCase() === 'cancelled'}
-                      className="h-7 text-xs border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                      className="h-7 border-destructive/25 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
                     >
                       <XCircle className="h-3 w-3 mr-1" />
                       Cancel
@@ -574,7 +572,7 @@ export default function Bookings() {
                       variant="outline"
                       onClick={() => updateBookingStatus(booking.id, 'completed')}
                       disabled={booking.booking_status?.toLowerCase() === 'completed'}
-                      className="h-7 text-xs border-gray-300 hover:bg-gray-50"
+                      className="h-7 border-border text-xs hover:bg-muted"
                     >
                       <CheckCircle className="h-3 w-3 mr-1" />
                       Complete
@@ -585,6 +583,7 @@ export default function Bookings() {
             );
           })
         )}
+      </div>
       </div>
     </ProtectedPage>
   );

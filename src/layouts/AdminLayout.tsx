@@ -1,10 +1,18 @@
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { LogOut, Menu, X, Gem } from "lucide-react";
+import { LogOut, Menu, X, Gem, Moon, Sun, Monitor } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/auth/useAuth";
 import { cn } from "@/lib/utils";
 import { filterSidebar } from "@/lib/rbac";
+import { useTheme } from "next-themes";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -15,6 +23,7 @@ interface AdminLayoutProps {
 export default function AdminLayout({ children, title, description }: AdminLayoutProps) {
   const [open, setOpen] = useState(false);
   const { user, signOut, roles } = useAuth();
+  const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -93,10 +102,46 @@ export default function AdminLayout({ children, title, description }: AdminLayou
           >
             {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h1 className="truncate text-base font-semibold md:text-lg">{title}</h1>
             {description && <p className="hidden truncate text-xs text-muted-foreground sm:block">{description}</p>}
           </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="ml-auto h-9 w-9 shrink-0 rounded-full"
+                aria-label="Choose color theme"
+                title="Choose color theme"
+              >
+                {theme === "system" ? (
+                  <Monitor className="h-4 w-4" />
+                ) : theme === "dark" ? (
+                  <Moon className="h-4 w-4" />
+                ) : (
+                  <Sun className="h-4 w-4" />
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-36">
+              <DropdownMenuRadioGroup value={theme ?? "system"} onValueChange={setTheme}>
+                <DropdownMenuRadioItem value="system">
+                  <Monitor className="mr-2 h-4 w-4 text-muted-foreground" />
+                  System
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="light">
+                  <Sun className="mr-2 h-4 w-4 text-muted-foreground" />
+                  Light
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="dark">
+                  <Moon className="mr-2 h-4 w-4 text-muted-foreground" />
+                  Dark
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </header>
         <main className="flex-1 p-4 md:p-8">{children}</main>
       </div>
